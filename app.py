@@ -377,7 +377,10 @@ wind_rotation = (d['wind_dir'] + 180) % 360
 # --- UI Rendering (Now Using Pure HTML/CSS Grid) ---
 
 # 1. Top Metrics (Lake Level, Water Temp, Air Temp)
+# --- Water Temp Color Logic (MUST be above HTML) ---
 temp_color = "#3498db" if disp_water_temp < 60 else "#f39c12" if disp_water_temp < 80 else "#e74c3c"
+
+# --- Top Metrics HTML ---
 top_html = f"""
 <div class="metrics-grid">
     <div class="metric-card">
@@ -385,19 +388,25 @@ top_html = f"""
         <div class="metric-value">{level_val}</div>
         <div class="metric-sub">{level_diff_html} (Full)</div>
     </div>
+
     <div class="metric-card">
         <div class="metric-title">Water Temp</div>
-        
-        <div class="metric-value" style="color:{temp_color};">{disp_water_temp}{unit_temp}</div>
+        <div class="metric-value" style="color:{temp_color};">
+            {disp_water_temp}{unit_temp}
+        </div>
         <div class="metric-sub">Surface</div>
     </div>
+
     <div class="metric-card">
         <div class="metric-title">Air Temp</div>
-        <div class="metric-value">{disp_air_temp}{unit_temp}</div>
+        <div class="metric-value">
+            {disp_air_temp}{unit_temp}
+        </div>
         <div class="metric-sub">Flowery Branch</div>
     </div>
 </div>
 """
+
 st.markdown(top_html, unsafe_allow_html=True)
 
 # 2. Quick Boating Info (Flexbox Pills)
