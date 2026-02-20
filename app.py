@@ -376,8 +376,6 @@ places = [
 places_json = json.dumps(places)
 map_tile_url = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" if st.session_state.dark_mode else "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
 js_metric_flag = "true" if st.session_state.is_metric else "false"
-
-# Use rgba for the dashboard background to give it that Apple Maps blurred glass look
 dash_bg = "rgba(30, 33, 48, 0.95)" if st.session_state.dark_mode else "rgba(255, 255, 255, 0.95)"
 
 nav_html = f"""
@@ -392,16 +390,20 @@ nav_html = f"""
         #map-container {{ position: relative; height: 600px; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid {theme['border']}; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }}
         #map {{ height: 100%; width: 100%; z-index: 1; }}
         
-        /* Floating Apple-Maps Style Dashboard Overlay */
+        /* Ultra-Slim Navigation Dashboard Overlay */
         #nav-dashboard {{
             position: absolute; bottom: 0; left: 0; width: 100%; z-index: 1001;
             background: {dash_bg}; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-            color: {theme['text']}; padding: 20px 15px; border-top: 3px solid #3498db;
-            box-sizing: border-box; border-radius: 25px 25px 0 0;
-            transform: translateY(110%); transition: transform 0.4s cubic-bezier(0.1, 0.8, 0.2, 1);
+            color: {theme['text']}; padding: 12px 15px 15px 15px; border-top: 3px solid #3498db;
+            box-sizing: border-box; border-radius: 20px 20px 0 0;
+            transform: translateY(110%); transition: transform 0.3s cubic-bezier(0.1, 0.8, 0.2, 1);
             box-shadow: 0 -5px 20px rgba(0,0,0,0.3);
         }}
         #nav-dashboard.active {{ transform: translateY(0); }}
+        
+        .stats-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; margin-top: 5px; }}
+        .stat-val {{ font-size: 1.6rem; font-weight: 900; line-height: 1.2; }}
+        .stat-lbl {{ font-size: 0.7rem; opacity: 0.8; font-weight: bold; text-transform: uppercase; }}
         
         #search-container {{ position: absolute; top: 10px; left: 10px; z-index: 1000; width: 65%; max-width: 320px; }}
         #poi-search {{
@@ -414,23 +416,18 @@ nav_html = f"""
             border: 1px solid {theme['border']}; box-shadow: 0 4px 15px rgba(0,0,0,0.4); overflow: hidden;
             max-height: 250px; overflow-y: auto;
         }}
-        .search-item {{ padding: 12px 15px; cursor: pointer; border-bottom: 1px solid {theme['border']}; color: {theme['text']}; }}
+        .search-item {{ padding: 12px 15px; cursor: pointer; border-bottom: 1px solid {theme['border']}; color: {theme['text']}; font-size: 0.9rem; }}
         .search-item:last-child {{ border-bottom: none; }}
         .search-item:hover {{ background: rgba(52, 152, 219, 0.15); }}
 
         #filter-panel {{
             position: absolute; top: 10px; right: 10px; z-index: 1000;
             background: {dash_bg}; backdrop-filter: blur(5px); color: {theme['text']};
-            padding: 10px 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            padding: 8px 12px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
             border: 1px solid {theme['border']}; font-size: 0.9rem; font-weight: bold;
         }}
-        .filter-cb {{ margin-right: 8px; transform: scale(1.2); cursor: pointer; }}
-        .filter-row {{ margin-bottom: 8px; display: flex; align-items: center; cursor: pointer; }}
-        
-        .stats-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; margin-top: 15px; }}
-        .stat-val {{ font-size: 1.5rem; font-weight: 900; }}
-        .stat-lbl {{ font-size: 0.75rem; opacity: 0.8; font-weight: bold; text-transform: uppercase; }}
-        .eta-box {{ margin-top: 15px; background: rgba(52, 152, 219, 0.15); padding: 10px; border-radius: 8px; font-weight: bold; text-align: center; color: #3498db; font-size: 1.1rem; }}
+        .filter-cb {{ margin-right: 6px; transform: scale(1.2); cursor: pointer; }}
+        .filter-row {{ margin-bottom: 6px; display: flex; align-items: center; cursor: pointer; }}
         
         .map-marker {{
             width: 36px; height: 36px; background: white; border-radius: 50%; display: flex;
@@ -451,23 +448,17 @@ nav_html = f"""
         #map.show-labels .poi-label {{ opacity: 1 !important; }}
 
         .nav-arrow-marker {{ display: flex; align-items: center; justify-content: center; transition: transform 0.1s linear; transform-origin: center center; }}
-        .start-btn {{ background: #3498db; color: white; border: none; padding: 12px 15px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; margin-top: 12px; width: 100%; box-shadow: 0 2px 5px rgba(52,152,219,0.4); }}
-        .stop-btn {{ background: #e74c3c; color: white; border: none; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 0.9rem; float: right; box-shadow: 0 2px 5px rgba(231,76,60,0.4); }}
+        .start-btn {{ background: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 8px; font-weight: bold; font-size: 0.9rem; cursor: pointer; margin-top: 10px; width: 100%; }}
+        .stop-btn {{ background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 15px; font-weight: bold; cursor: pointer; font-size: 0.8rem; }}
         
         #recenter-btn {{
-            display: none; position: absolute; bottom: 20px; right: 20px; z-index: 1000;
+            display: none; position: absolute; bottom: 120px; right: 20px; z-index: 1000;
             background: {theme['card_bg']}; color: #3498db; border: 2px solid #3498db;
-            width: 50px; height: 50px; border-radius: 50%; padding: 0;
+            width: 44px; height: 44px; border-radius: 50%; padding: 0;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer;
             align-items: center; justify-content: center; transition: background 0.2s;
         }}
         #recenter-btn:active {{ background: #3498db; color: white; stroke: white; }}
-        
-        .steer-compass {{
-            margin: 10px auto 0 auto; width: 60px; height: 60px; border-radius: 50%;
-            background: {theme['bg']}; border: 3px solid #3498db; display: flex;
-            align-items: center; justify-content: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
-        }}
         
         @media (max-width: 600px) {{
             #search-container {{ width: 90%; max-width: none; left: 5%; }}
@@ -491,33 +482,22 @@ nav_html = f"""
         </div>
 
         <button id="recenter-btn" onclick="recenterMap()">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"></circle><line x1="22" y1="12" x2="18" y2="12"></line><line x1="6" y1="12" x2="2" y2="12"></line><line x1="12" y1="6" x2="12" y2="2"></line><line x1="12" y1="22" x2="12" y2="18"></line>
             </svg>
         </button>
 
         <div id="nav-dashboard">
-            <div style="font-size: 1.2rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <div style="font-size: 1.1rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <span id="nav-title" style="color:#3498db;">Navigating...</span>
                 <button class="stop-btn" onclick="stopNav()">🛑 Stop</button>
             </div>
             
-            <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
-                <div class="steer-compass">
-                    <svg id="steer-arrow" style="transition: transform 0.1s ease-out;" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="12" y1="19" x2="12" y2="5"></line>
-                        <polyline points="5 12 12 5 19 12"></polyline>
-                    </svg>
-                </div>
-                <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 800; width: 90px; line-height: 1.2;">STEER TO <br>TARGET</div>
-            </div>
-
             <div class="stats-grid">
-                <div><div class="stat-lbl">Speed</div><div class="stat-val" id="gps-speed">--</div><div style="font-size:0.7rem" id="lbl-speed">mph</div></div>
-                <div><div class="stat-lbl">Distance</div><div class="stat-val" id="gps-dist" style="color:#e74c3c">--</div><div style="font-size:0.7rem" id="lbl-dist">miles</div></div>
-                <div><div class="stat-lbl">Heading</div><div class="stat-val" id="gps-heading">--</div><div style="font-size:0.7rem">deg</div></div>
+                <div><div class="stat-lbl">Speed</div><div class="stat-val" id="gps-speed">--</div><div style="font-size:0.6rem" id="lbl-speed">mph</div></div>
+                <div><div class="stat-lbl">Distance</div><div class="stat-val" id="gps-dist" style="color:#e74c3c">--</div><div style="font-size:0.6rem" id="lbl-dist">miles</div></div>
+                <div><div class="stat-lbl">ETA</div><div class="stat-val" id="gps-eta" style="color:#3498db">--</div><div style="font-size:0.6rem">mins</div></div>
             </div>
-            <div class="eta-box">⏱️ ETA: <span id="gps-eta">Waiting for GPS...</span></div>
         </div>
         
         <div id="map"></div>
@@ -531,7 +511,6 @@ nav_html = f"""
     var places = {places_json};
     var markersLayer = L.layerGroup().addTo(map);
     
-    // NATIVE HTML ICONS (No broken images!)
     var iconMap = {{
         "Dining": L.divIcon({{className: '', html: '<div class="map-marker marker-dining">🍔</div>', iconSize: [36,36], iconAnchor: [18,18], popupAnchor: [0,-18]}}),
         "Fuel": L.divIcon({{className: '', html: '<div class="map-marker marker-fuel">⛽</div>', iconSize: [36,36], iconAnchor: [18,18], popupAnchor: [0,-18]}}),
@@ -556,11 +535,11 @@ nav_html = f"""
 
                 var popupHTML = `
                     <div style="text-align: center; min-width: 150px; font-family: sans-serif;">
-                        <b style="font-size: 1.2rem; color: #2c3e50; display:block; margin-bottom: 2px;">${{p.name}}</b>
+                        <b style="font-size: 1.1rem; color: #2c3e50; display:block; margin-bottom: 2px;">${{p.name}}</b>
                         <span style="font-size: 0.8rem; color: #7f8c8d; text-transform: uppercase; font-weight: bold;">${{p.type}}</span>
                         <div style="font-size: 0.85rem; margin: 10px 0; color: #333; background: #f0f2f6; padding: 5px; border-radius: 5px;">🕒 ${{p.hours}}</div>
                         <a href="${{p.web}}" target="_blank" style="font-size: 0.9rem; color: #3498db; text-decoration: none; font-weight: bold;">🌐 Website</a><br/>
-                        <button class="start-btn" onclick="startNav(${{index}})">Start Navigating</button>
+                        <button class="start-btn" onclick="startNav(${{index}})">Navigate</button>
                     </div>
                 `;
                 marker.bindPopup(popupHTML);
@@ -625,9 +604,7 @@ nav_html = f"""
         mapLocked = true;
         document.getElementById('recenter-btn').style.display = 'none';
         if (lastLat != null && lastLon != null) {{ 
-            // Pan so the boat is slightly above the dashboard overlay
             map.setView([lastLat, lastLon], 15, {{animate: true}}); 
-            map.panBy([0, 100], {{animate: true}});
         }}
     }};
 
@@ -637,20 +614,9 @@ nav_html = f"""
         if (event.webkitCompassHeading) {{ newHeading = event.webkitCompassHeading; }} 
         else if (event.alpha != null) {{ newHeading = 360 - event.alpha; }}
         currentHeading = newHeading;
-        updateCompassUI();
-    }}
-
-    function updateCompassUI() {{
-        if (!isNavigating) return;
+        
         let navArrow = document.getElementById('map-nav-arrow');
         if (navArrow) navArrow.style.transform = `rotate(${{currentHeading}}deg)`;
-        if (lastLat != null && currentTarget) {{
-            const targetBearing = getBearing(lastLat, lastLon, currentTarget.lat, currentTarget.lon);
-            let relativeBearing = targetBearing - currentHeading;
-            let steerArrow = document.getElementById('steer-arrow');
-            if (steerArrow) steerArrow.style.transform = `rotate(${{relativeBearing}}deg)`;
-        }}
-        document.getElementById("gps-heading").innerText = Math.round(currentHeading) + "°";
     }}
 
     function getDistance(lat1, lon1, lat2, lon2) {{
@@ -661,20 +627,12 @@ nav_html = f"""
         return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
     }}
 
-    function getBearing(lat1, lon1, lat2, lon2) {{
-        var dLon = (lon2 - lon1) * Math.PI / 180;
-        var y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
-        var x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) - Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLon);
-        return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
-    }}
-
     window.startNav = function(index) {{
         currentTarget = places[index];
         map.closePopup();
         isNavigating = true;
         mapLocked = true;
         
-        // Slide dashboard up smoothly
         document.getElementById('nav-dashboard').classList.add('active');
         document.getElementById('search-container').style.display = 'none';
         document.getElementById('filter-panel').style.display = 'none';
@@ -708,7 +666,6 @@ nav_html = f"""
         window.removeEventListener('deviceorientation', handleOrientation, true);
         window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
 
-        // Slide dashboard down smoothly
         document.getElementById('nav-dashboard').classList.remove('active');
         document.getElementById('search-container').style.display = 'block';
         document.getElementById('filter-panel').style.display = 'flex';
@@ -744,7 +701,6 @@ nav_html = f"""
 
         if (mapLocked) {{ 
             map.setView(userLatLng, 15, {{animate: true}}); 
-            map.panBy([0, 100], {{animate: false}}); // Keep boat visible above dashboard
         }}
 
         if (!routeLine) {{
@@ -767,23 +723,20 @@ nav_html = f"""
         if (speed_val > 2) {{
             const hours = dist / speed_val;
             const mins = Math.round(hours * 60);
-            document.getElementById("gps-eta").innerText = mins + " mins";
+            document.getElementById("gps-eta").innerText = mins;
         }} else {{
-            document.getElementById("gps-eta").innerText = "Start moving...";
+            document.getElementById("gps-eta").innerText = "--";
         }}
-        
-        updateCompassUI();
     }}
 
     function handleError(error) {{
         console.warn(error);
-        document.getElementById("gps-eta").innerText = "GPS Access Denied";
+        document.getElementById("gps-eta").innerText = "Err";
     }}
     </script>
 </body>
 </html>
 """
-# Make the iframe slightly taller to accommodate the new sliding UI
 st.components.v1.html(nav_html, height=620)
 
 # --- Utilities ---
