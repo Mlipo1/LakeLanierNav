@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import folium
-from streamlit_folium import st_folium
 import requests
 import re
 import json
@@ -14,138 +13,6 @@ if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True 
 if "is_metric" not in st.session_state:
     st.session_state.is_metric = False
-
-# --- Top Header & Controls ---
-col_title, col_controls = st.columns([2.2, 1.8])
-with col_title:
-    st.markdown('<h1 class="main-title">⚓ Lanier Navigator</h1>', unsafe_allow_html=True)
-
-with col_controls:
-    st.write("") 
-    theme_lbl = "🌙 Dark Theme" if st.session_state.dark_mode else "☀️ Light Theme"
-    new_theme = st.toggle(theme_lbl, value=st.session_state.dark_mode)
-    if new_theme != st.session_state.dark_mode:
-        st.session_state.dark_mode = new_theme
-        st.rerun()
-        
-    unit_lbl = "📏 Metric Units" if st.session_state.is_metric else "📏 Imperial Units"
-    new_unit = st.toggle(unit_lbl, value=st.session_state.is_metric)
-    if new_unit != st.session_state.is_metric:
-        st.session_state.is_metric = new_unit
-        st.rerun()
-
-# --- Theme Definitions ---
-theme = {
-    "bg": "#0e1117" if st.session_state.dark_mode else "#f0f2f6",
-    "card_bg": "#1e2130" if st.session_state.dark_mode else "#ffffff",
-    "text": "#fafafa" if st.session_state.dark_mode else "#2c3e50",
-    "sub_text": "#a0aab5" if st.session_state.dark_mode else "#6c757d",
-    "border": "#333847" if st.session_state.dark_mode else "#d1d8e0",
-    "map_tiles": "CartoDB dark_matter" if st.session_state.dark_mode else "CartoDB positron"
-}
-
-st.markdown(f"""
-    <style>
-    /* Prevent Mobile Horizontal Scrolling & Bouncing */
-    html, body, [data-testid="stAppViewContainer"], .stApp {{
-        overflow-x: hidden !important; max-width: 100vw !important;
-    }}
-    * {{ box-sizing: border-box !important; }}
-
-    .stApp {{ background-color: {theme['bg']} !important; }}
-    h3, div[data-testid="stWidgetLabel"] p, p {{ color: {theme['text']} !important; font-weight: 600; }}
-    
-    .main-title {{
-        color: {theme['text']} !important; font-weight: 800; font-size: clamp(1.8rem, 5vw, 2.5rem);
-        white-space: nowrap; margin-bottom: 0px; margin-top: 15px;
-    }}
-    
-    div[data-testid="stToggle"] {{
-        background-color: {theme['card_bg']}; padding: 8px 15px; border-radius: 20px;
-        border: 1px solid {theme['border']}; margin-bottom: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    }}
-    div[data-testid="stToggle"] label div[role="switch"] {{ background-color: #a0aab5 !important; }}
-    div[data-testid="stToggle"] label div[role="switch"][aria-checked="true"] {{ background-color: #3498db !important; }}
-    
-    .metrics-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px; }}
-    
-    .metric-card {{
-        background: {theme['card_bg']}; border-radius: 15px; padding: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; border: 1px solid {theme['border']};
-        display: flex; flex-direction: column; justify-content: center;
-    }}
-    .metric-title {{ color: {theme['sub_text']}; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }}
-    .metric-value {{ color: {theme['text']}; font-size: 2.2rem; font-weight: 900; line-height: 1.1; }}
-    .metric-sub {{ font-size: 0.8rem; font-weight: 600; margin-top: 5px; color: {theme['sub_text']}; line-height: 1.3; }}
-    .text-red {{ color: #e74c3c; }}
-    
-    .chop-safe {{ color: #2ecc71; font-weight: 800; }}
-    .chop-warn {{ color: #f1c40f; font-weight: 800; }}
-    .chop-danger {{ color: #e74c3c; font-weight: 800; }}
-    
-    .pill-container {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 25px; margin-top: 5px; }}
-    .info-pill {{
-        background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 30px; padding: 8px 15px;
-        color: {theme['text']}; font-size: 0.85rem; font-weight: 600; text-align: center;
-        flex: 1 1 calc(33% - 10px); min-width: 130px; box-shadow: 0 2px 5px rgba(0,0,0,0.02);
-    }}
-    
-    .wind-container {{
-        background: linear-gradient(135deg, #2c3e50, #3498db); border-radius: 20px; padding: 20px; color: white;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.15); margin-bottom: 25px;
-    }}
-    .wind-merged {{ display: flex; flex-direction: row; align-items: center; justify-content: space-around; gap: 20px; width: 100%; }}
-    .wind-stats-box {{ background: rgba(0,0,0,0.25); padding: 15px 25px; border-radius: 15px; min-width: 50%; text-align: center; }}
-    
-    @keyframes wind-pulse {{
-        0% {{ transform: translateY(0px); opacity: 0.8; }}
-        50% {{ transform: translateY(-8px); opacity: 1; filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.8)); }}
-        100% {{ transform: translateY(0px); opacity: 0.8; }}
-    }}
-    .animated-wind {{ display: inline-block; animation: wind-pulse 2s infinite ease-in-out; }}
-
-    .sim-wave-box {{
-        position: relative; background: linear-gradient(to bottom, transparent 0%, rgba(52, 152, 219, 0.1) 100%);
-        height: 100px; border-radius: 10px; overflow: hidden; margin-top: 15px; width: 100%; border-bottom: 3px solid #3498db;
-    }}
-    .sim-wave-back {{
-        position: absolute; bottom: 0; left: 0; width: 200%; height: 60px;
-        background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,60 350,0 600,30 C850,60 1050,0 1200,30 L1200,60 L0,60 Z" fill="%232980b9" opacity="0.5"/></svg>') repeat-x;
-        background-size: 50% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-back, 3s) linear infinite reverse;
-    }}
-    .sim-wave-front {{
-        position: absolute; bottom: 0; left: 0; width: 200%; height: 50px;
-        background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,0 350,60 600,30 C850,0 1050,60 1200,30 L1200,60 L0,60 Z" fill="%233498db" opacity="0.8"/></svg>') repeat-x;
-        background-size: 50% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-front, 2.5s) linear infinite;
-    }}
-    @keyframes wave-move {{
-        0% {{ transform: translateX(0) scaleY(var(--wave-scale, 1)); }}
-        100% {{ transform: translateX(-50%) scaleY(var(--wave-scale, 1)); }}
-    }}
-
-    /* Collapsible Alert System CSS */
-    .alert-expander {{
-        background: #e74c3c; border-radius: 12px; color: white;
-        margin-top: 15px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-    }}
-    .alert-summary {{
-        padding: 15px; font-weight: 800; cursor: pointer; display: flex;
-        align-items: center; justify-content: space-between; list-style: none;
-    }}
-    .alert-summary::-webkit-details-marker {{ display: none; }}
-    .alert-content {{ padding: 0 15px 15px 15px; font-weight: 600; font-size: 0.95rem; line-height: 1.4; }}
-
-    @media (max-width: 600px) {{
-        .main-title {{ text-align: center; margin-bottom: 10px; }}
-        .metrics-grid {{ grid-template-columns: 1fr 1fr; gap: 10px; }}
-        .metrics-grid .metric-card:nth-child(3) {{ grid-column: span 2; }}
-        .metric-value {{ font-size: 1.6rem !important; }}
-        div[data-testid="stToggle"] {{ width: 100%; display: flex; justify-content: center; }}
-        .wind-merged {{ flex-direction: column; text-align: center; }}
-        .wind-stats-box {{ width: 100%; padding: 15px; }}
-    }}
-    </style>
-    """, unsafe_allow_html=True)
 
 # --- Data Fetching Functions ---
 @st.cache_data(ttl=300) 
@@ -215,17 +82,13 @@ def calculate_chop(wind, gusts):
 
 FULL_POOL_FT = 1071.0
 
-# UPDATED: Score now actively deducts points for low water levels
 def calculate_boat_score(d, wave):
     score = 100 - (d["wind_mph"] * 1.5) - (d["rain_chance"] * 0.5) - (wave * 8)
     if d['level'] != "N/A":
         level_diff = FULL_POOL_FT - d['level']
-        if level_diff > 0:
-            # Deduct 3 points for every foot the lake is down
-            score -= (level_diff * 3)
+        if level_diff > 0: score -= (level_diff * 3)
     return max(0, min(100, round(score)))
 
-# UPDATED: Dynamic text alerts including severe water level warnings
 def get_safety_alert(d, wave):
     alerts = []
     if d["wind_mph"] >= 20 or d["gusts"] >= 30: 
@@ -244,11 +107,13 @@ def get_safety_alert(d, wave):
             alerts.append("🪵 <strong>High Water Warning:</strong> Lake is above full pool. Watch for floating debris and submerged dock structures.")
     return alerts
 
-# --- Execute Data Logic ---
+# --- INITIALIZE DATA SO ALERTS CAN BE SHOWN AT TOP ---
 d = fetch_data()
 trend_24h = fetch_level_trend()
 wave_height = round(0.016 * (d["wind_mph"] ** 1.5), 1)
+alerts = get_safety_alert(d, wave_height)
 
+# Metric Conversions
 if st.session_state.is_metric:
     unit_dist, unit_temp, unit_speed, unit_vis, unit_press = "m", "°C", "km/h", "km", "hPa"
     disp_level = round(d['level'] * 0.3048, 2) if d['level'] != "N/A" else "N/A"
@@ -275,6 +140,100 @@ else:
 direction_text = get_compass_dir(d['wind_dir'])
 chop_text, chop_color = calculate_chop(d['wind_mph'], d['gusts'])
 wind_rotation = d['wind_dir']
+
+# --- UI Theme Definitions ---
+theme = {
+    "bg": "#0e1117" if st.session_state.dark_mode else "#f0f2f6",
+    "card_bg": "#1e2130" if st.session_state.dark_mode else "#ffffff",
+    "text": "#fafafa" if st.session_state.dark_mode else "#2c3e50",
+    "sub_text": "#a0aab5" if st.session_state.dark_mode else "#6c757d",
+    "border": "#333847" if st.session_state.dark_mode else "#d1d8e0",
+    "map_tiles": "CartoDB dark_matter" if st.session_state.dark_mode else "CartoDB positron"
+}
+
+st.markdown(f"""
+    <style>
+    html, body, [data-testid="stAppViewContainer"], .stApp {{ overflow-x: hidden !important; max-width: 100vw !important; }}
+    * {{ box-sizing: border-box !important; }}
+    .stApp {{ background-color: {theme['bg']} !important; }}
+    h3, div[data-testid="stWidgetLabel"] p, p {{ color: {theme['text']} !important; font-weight: 600; }}
+    
+    .main-title {{ color: {theme['text']} !important; font-weight: 800; font-size: clamp(1.8rem, 5vw, 2.5rem); white-space: nowrap; margin-bottom: 0px; margin-top: 15px; }}
+    
+    div[data-testid="stToggle"] {{ background-color: {theme['card_bg']}; padding: 8px 15px; border-radius: 20px; border: 1px solid {theme['border']}; margin-bottom: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }}
+    div[data-testid="stToggle"] label div[role="switch"] {{ background-color: #a0aab5 !important; }}
+    div[data-testid="stToggle"] label div[role="switch"][aria-checked="true"] {{ background-color: #3498db !important; }}
+    
+    .alert-expander {{ background: #e74c3c; border-radius: 12px; color: white; margin-top: 5px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }}
+    .alert-summary {{ padding: 15px; font-weight: 800; cursor: pointer; display: flex; align-items: center; justify-content: space-between; list-style: none; }}
+    .alert-summary::-webkit-details-marker {{ display: none; }}
+    .alert-content {{ padding: 0 15px 15px 15px; font-weight: 600; font-size: 0.95rem; line-height: 1.4; }}
+    
+    .metrics-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px; }}
+    .metric-card {{ background: {theme['card_bg']}; border-radius: 15px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; border: 1px solid {theme['border']}; display: flex; flex-direction: column; justify-content: center; }}
+    .metric-title {{ color: {theme['sub_text']}; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }}
+    .metric-value {{ color: {theme['text']}; font-size: 2.2rem; font-weight: 900; line-height: 1.1; }}
+    .metric-sub {{ font-size: 0.8rem; font-weight: 600; margin-top: 5px; color: {theme['sub_text']}; line-height: 1.3; }}
+    .text-red {{ color: #e74c3c; }}
+    
+    .pill-container {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 25px; margin-top: 5px; }}
+    .info-pill {{ background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 30px; padding: 8px 15px; color: {theme['text']}; font-size: 0.85rem; font-weight: 600; text-align: center; flex: 1 1 calc(33% - 10px); min-width: 130px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }}
+    
+    .wind-container {{ background: linear-gradient(135deg, #2c3e50, #3498db); border-radius: 20px; padding: 20px; color: white; box-shadow: 0 10px 20px rgba(0,0,0,0.15); margin-bottom: 25px; }}
+    .wind-merged {{ display: flex; flex-direction: row; align-items: center; justify-content: space-around; gap: 20px; width: 100%; }}
+    .wind-stats-box {{ background: rgba(0,0,0,0.25); padding: 15px 25px; border-radius: 15px; min-width: 50%; text-align: center; }}
+    @keyframes wind-pulse {{ 0% {{ transform: translateY(0px); opacity: 0.8; }} 50% {{ transform: translateY(-8px); opacity: 1; filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.8)); }} 100% {{ transform: translateY(0px); opacity: 0.8; }} }}
+    .animated-wind {{ display: inline-block; animation: wind-pulse 2s infinite ease-in-out; }}
+
+    .sim-wave-box {{ position: relative; background: linear-gradient(to bottom, transparent 0%, rgba(52, 152, 219, 0.1) 100%); height: 100px; border-radius: 10px; overflow: hidden; margin-top: 15px; width: 100%; border-bottom: 3px solid #3498db; }}
+    .sim-wave-back {{ position: absolute; bottom: 0; left: 0; width: 200%; height: 60px; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,60 350,0 600,30 C850,60 1050,0 1200,30 L1200,60 L0,60 Z" fill="%232980b9" opacity="0.5"/></svg>') repeat-x; background-size: 50% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-back, 3s) linear infinite reverse; }}
+    .sim-wave-front {{ position: absolute; bottom: 0; left: 0; width: 200%; height: 50px; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,0 350,60 600,30 C850,0 1050,60 1200,30 L1200,60 L0,60 Z" fill="%233498db" opacity="0.8"/></svg>') repeat-x; background-size: 50% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-front, 2.5s) linear infinite; }}
+    @keyframes wave-move {{ 0% {{ transform: translateX(0) scaleY(var(--wave-scale, 1)); }} 100% {{ transform: translateX(-50%) scaleY(var(--wave-scale, 1)); }} }}
+
+    @media (max-width: 600px) {{
+        .main-title {{ text-align: center; margin-bottom: 10px; }}
+        .metrics-grid {{ grid-template-columns: 1fr 1fr; gap: 10px; }}
+        .metrics-grid .metric-card:nth-child(3) {{ grid-column: span 2; }}
+        .metric-value {{ font-size: 1.6rem !important; }}
+        div[data-testid="stToggle"] {{ width: 100%; display: flex; justify-content: center; }}
+        .wind-merged {{ flex-direction: column; text-align: center; }}
+        .wind-stats-box {{ width: 100%; padding: 15px; }}
+    }}
+    </style>
+""", unsafe_allow_html=True)
+
+# --- Top Header & Controls ---
+col_title, col_controls = st.columns([2.2, 1.8])
+with col_title:
+    st.markdown('<h1 class="main-title">⚓ Lanier Navigator</h1>', unsafe_allow_html=True)
+
+with col_controls:
+    st.write("") 
+    theme_lbl = "🌙 Dark Theme" if st.session_state.dark_mode else "☀️ Light Theme"
+    new_theme = st.toggle(theme_lbl, value=st.session_state.dark_mode)
+    if new_theme != st.session_state.dark_mode:
+        st.session_state.dark_mode = new_theme
+        st.rerun()
+        
+    unit_lbl = "📏 Metric Units" if st.session_state.is_metric else "📏 Imperial Units"
+    new_unit = st.toggle(unit_lbl, value=st.session_state.is_metric)
+    if new_unit != st.session_state.is_metric:
+        st.session_state.is_metric = new_unit
+        st.rerun()
+
+# --- TOP PRIORITY: SAFETY BANNER ---
+if alerts:
+    alert_items = "".join([f"<div style='margin-bottom: 8px;'>{a}</div>" for a in alerts])
+    alert_count = len(alerts)
+    st.markdown(f"""
+    <details class="alert-expander" open>
+        <summary class="alert-summary">
+            <span>⚠️ IMPORTANT SAFETY ALERTS ({alert_count})</span>
+            <span style="font-size: 0.8rem; opacity: 0.9; text-transform: uppercase;">Tap to toggle</span>
+        </summary>
+        <div class="alert-content">{alert_items}</div>
+    </details>
+    """, unsafe_allow_html=True)
 
 # --- Top Level HTML Formatting ---
 trend_arrow = "↑" if trend_24h >= 0 else "↓"
@@ -316,11 +275,9 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- Boating Score & Safety Banner ---
-st.markdown("### 🚦 Boating Conditions & Safety")
-
+# --- Boating Score ---
+st.markdown("### 🚦 Boating Conditions")
 boat_score = calculate_boat_score(d, wave_height)
-alerts = get_safety_alert(d, wave_height)
 
 if boat_score >= 85: score_label, score_color = "🟢 Excellent", "#2ecc71"
 elif boat_score >= 65: score_label, score_color = "🟡 Good", "#f1c40f"
@@ -335,25 +292,8 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# NEW: Collapsible Interactive Alert Banner
-if alerts:
-    alert_items = "".join([f"<div style='margin-bottom: 8px;'>{a}</div>" for a in alerts])
-    alert_count = len(alerts)
-    st.markdown(f"""
-    <details class="alert-expander" open>
-        <summary class="alert-summary">
-            <span>⚠️ IMPORTANT SAFETY ALERTS ({alert_count})</span>
-            <span style="font-size: 0.8rem; opacity: 0.9; text-transform: uppercase;">Tap to toggle</span>
-        </summary>
-        <div class="alert-content">
-            {alert_items}
-        </div>
-    </details>
-    """, unsafe_allow_html=True)
-
 # --- Live Camera & Wave Simulator Section ---
 st.markdown("### 📷 Live Camera & Wave Simulator")
-
 cam_col, sim_col = st.columns([1, 1])
 with cam_col:
     st.markdown('<div class="metric-title" style="margin-bottom:10px;">🔴 LLSC Live Stream</div>', unsafe_allow_html=True)
@@ -361,7 +301,6 @@ with cam_col:
 
 with sim_col:
     st.markdown('<div class="metric-title" style="margin-bottom:10px;">🌊 Wave Height Simulation</div>', unsafe_allow_html=True)
-    
     css_wave_scale = max(0.15, min(wave_height * 0.6 + 0.15, 2.5))
     css_speed_front = max(1.5, 8.0 - (d["wind_mph"] * 0.25))
     css_speed_back = max(1.2, 6.0 - (d["wind_mph"] * 0.25))
@@ -382,7 +321,6 @@ with sim_col:
 
 # --- Consolidated Wind Section ---
 st.markdown("### 💨 Live Wind Details")
-
 wind_html = f"""
 <div class="wind-container">
 <div class="wind-merged">
@@ -418,11 +356,28 @@ wind_html = f"""
 """
 st.markdown(wind_html, unsafe_allow_html=True)
 
-
 # ---------------------------------------------------------
 # MAP & NAVIGATION DASHBOARD
 # ---------------------------------------------------------
 st.markdown("### 📍 Dock & Dine Navigation")
+
+places = [
+    {"name":"Pig Tales (Aqualand)","lat":34.1805,"lon":-83.9515,"type":"Dining","hours":"Daily 11am - 10pm","web":"https://www.pigtaleslakelanier.com/"},
+    {"name":"Fish Tales (Hideaway)","lat":34.1833,"lon":-83.9392,"type":"Dining","hours":"Daily 11am - 10pm","web":"https://www.fishtaleslakelanier.com/"},
+    {"name":"Pelican Pete's","lat":34.2432,"lon":-83.9617,"type":"Dining","hours":"Fri-Sun 11am - 9pm","web":"https://www.pelicanpetes.com/"},
+    {"name":"Twisted Oar","lat":34.1692,"lon":-84.0047,"type":"Dining","hours":"Daily 11am - 10pm","web":"https://www.twistedoar.com/"},
+    {"name":"LandShark (Margaritaville)","lat":34.1852,"lon":-84.0150,"type":"Dining","hours":"Daily 11am - 10pm","web":"https://www.margaritavilleresorts.com/"},
+    {"name":"Holiday Marina (Gas)","lat":34.1712,"lon":-84.0047,"type":"Fuel","hours":"Daily 9am - 6pm","web":"https://holidaylakelanier.com/"},
+    {"name":"Sunset Cove (Gas)","lat":34.1830,"lon":-84.0180,"type":"Fuel","hours":"Daily 9am - 6pm","web":"https://www.margaritavilleresorts.com/"},
+    {"name":"Aqualand Marina","lat":34.1793,"lon":-83.9538,"type":"Marina","hours":"Daily 9am - 5pm","web":"https://shmarinas.com/"},
+    {"name":"Port Royale Marina","lat":34.2450,"lon":-83.9620,"type":"Marina","hours":"Daily 8am - 5pm","web":"https://www.bestinboating.com/"}
+]
+
+places_json = json.dumps(places)
+map_tile_url = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" if st.session_state.dark_mode else "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+
+# THIS FLAG CAUSED THE BUG - Definitively injected here before the f-string evaluates
+js_metric_flag = "true" if st.session_state.is_metric else "false"
 
 nav_html = f"""
 <!DOCTYPE html>
@@ -433,45 +388,26 @@ nav_html = f"""
     <style>
         body {{ margin: 0; padding: 0; font-family: -apple-system, sans-serif; background: transparent; }}
         
-        /* Flexbox Layout Fix: Dashboard pushes map down instead of overlaying */
-        #map-container {{ 
-            display: flex; flex-direction: column; position: relative; 
-            height: 550px; width: 100%; border-radius: 12px; overflow: hidden; 
-            border: 1px solid {theme['border']}; 
-        }}
+        #map-container {{ display: flex; flex-direction: column; position: relative; height: 550px; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid {theme['border']}; }}
         #map {{ flex: 1; width: 100%; z-index: 1; }}
         
-        /* Navigation Dashboard (Now sits IN the flexbox, no absolute positioning) */
         #nav-dashboard {{
-            display: none; width: 100%; z-index: 1001;
-            background: {theme['card_bg']}; color: {theme['text']}; padding: 15px;
-            border-bottom: 3px solid #3498db; box-sizing: border-box;
+            display: none; width: 100%; z-index: 1001; background: {theme['card_bg']}; color: {theme['text']}; padding: 15px; border-bottom: 3px solid #3498db; box-sizing: border-box;
         }}
         
-        /* Search Bar Setup */
-        #search-container {{
-            position: absolute; top: 10px; left: 10px; z-index: 1000; width: 65%; max-width: 320px;
-        }}
+        #search-container {{ position: absolute; top: 10px; left: 10px; z-index: 1000; width: 65%; max-width: 320px; }}
         #poi-search {{
-            width: 100%; padding: 12px 15px; border-radius: 25px; border: 2px solid #3498db;
-            background: {theme['card_bg']}; color: {theme['text']}; font-weight: bold; font-size: 1rem;
-            outline: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3); box-sizing: border-box;
+            width: 100%; padding: 12px 15px; border-radius: 25px; border: 2px solid #3498db; background: {theme['card_bg']}; color: {theme['text']}; font-weight: bold; font-size: 1rem; outline: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3); box-sizing: border-box;
         }}
         #search-results {{
-            display: none; background: {theme['card_bg']}; margin-top: 5px; border-radius: 12px;
-            border: 1px solid {theme['border']}; box-shadow: 0 4px 15px rgba(0,0,0,0.4); overflow: hidden;
-            max-height: 250px; overflow-y: auto;
+            display: none; background: {theme['card_bg']}; margin-top: 5px; border-radius: 12px; border: 1px solid {theme['border']}; box-shadow: 0 4px 15px rgba(0,0,0,0.4); overflow: hidden; max-height: 250px; overflow-y: auto;
         }}
         .search-item {{ padding: 12px 15px; cursor: pointer; border-bottom: 1px solid {theme['border']}; color: {theme['text']}; }}
         .search-item:last-child {{ border-bottom: none; }}
         .search-item:hover {{ background: rgba(52, 152, 219, 0.15); }}
 
-        /* Floating Map Filters */
         #filter-panel {{
-            position: absolute; top: 10px; right: 10px; z-index: 1000;
-            background: {theme['card_bg']}; color: {theme['text']};
-            padding: 10px 15px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            border: 1px solid {theme['border']}; font-size: 0.9rem; font-weight: bold;
+            position: absolute; top: 10px; right: 10px; z-index: 1000; background: {theme['card_bg']}; color: {theme['text']}; padding: 10px 15px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: 1px solid {theme['border']}; font-size: 0.9rem; font-weight: bold;
         }}
         .filter-cb {{ margin-right: 8px; transform: scale(1.2); cursor: pointer; }}
         .filter-row {{ margin-bottom: 8px; display: flex; align-items: center; cursor: pointer; }}
@@ -481,51 +417,23 @@ nav_html = f"""
         .stat-lbl {{ font-size: 0.7rem; opacity: 0.8; font-weight: bold; text-transform: uppercase; }}
         .eta-box {{ margin-top: 15px; background: rgba(52, 152, 219, 0.1); padding: 8px; border-radius: 8px; font-weight: bold; text-align: center; color: #3498db; }}
         
-        /* Custom Map Markers */
-        .map-marker {{
-            width: 34px; height: 34px; background: white; border-radius: 50%;
-            display: flex; align-items: center; justify-content: center;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.4); font-size: 18px; border: 2px solid white;
-        }}
+        .map-marker {{ width: 34px; height: 34px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 8px rgba(0,0,0,0.4); font-size: 18px; border: 2px solid white; }}
         .marker-dining {{ border-color: #e74c3c; background: #ffeaa7; }}
         .marker-fuel {{ border-color: #f39c12; background: #ffeaa7; }}
         .marker-marina {{ border-color: #3498db; background: #81ecec; }}
         
-        /* Smart Zoom Labels (Using !important to override Leaflet default inline opacity) */
         .poi-label {{
-            background: transparent !important; border: none !important; box-shadow: none !important; 
-            color: {theme['text']} !important; font-weight: 900 !important; font-size: 0.9rem !important;
-            text-shadow: 2px 2px 0 {theme['bg']}, -2px -2px 0 {theme['bg']}, 2px -2px 0 {theme['bg']}, -2px 2px 0 {theme['bg']} !important;
-            opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s ease !important;
+            background: transparent !important; border: none !important; box-shadow: none !important; color: {theme['text']} !important; font-weight: 900 !important; font-size: 0.9rem !important; text-shadow: 2px 2px 0 {theme['bg']}, -2px -2px 0 {theme['bg']}, 2px -2px 0 {theme['bg']}, -2px 2px 0 {theme['bg']} !important; opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s ease !important;
         }}
         #map.show-labels .poi-label {{ opacity: 1 !important; }}
 
-        /* Navigation Arrow Icon */
-        .nav-arrow-marker {{
-            display: flex; align-items: center; justify-content: center;
-            transition: transform 0.1s linear; transform-origin: center center;
-        }}
-
-        /* Buttons */
+        .nav-arrow-marker {{ display: flex; align-items: center; justify-content: center; transition: transform 0.1s linear; transform-origin: center center; }}
         .start-btn {{ background: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; width: 100%; }}
         .stop-btn {{ background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.8rem; float: right; }}
         
-        #recenter-btn {{
-            display: none; position: absolute; bottom: 20px; right: 20px; z-index: 1000;
-            background: {theme['card_bg']}; color: #3498db; border: 2px solid #3498db;
-            width: 48px; height: 48px; border-radius: 50%; padding: 0;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer;
-            align-items: center; justify-content: center;
-        }}
-
-        /* Steering Compass */
-        .steer-compass {{
-            margin: 10px auto 0 auto; width: 50px; height: 50px; border-radius: 50%;
-            background: {theme['bg']}; border: 2px solid #3498db; display: flex;
-            align-items: center; justify-content: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
-        }}
+        #recenter-btn {{ display: none; position: absolute; bottom: 20px; right: 20px; z-index: 1000; background: {theme['card_bg']}; color: #3498db; border: 2px solid #3498db; width: 48px; height: 48px; border-radius: 50%; padding: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer; align-items: center; justify-content: center; }}
+        .steer-compass {{ margin: 10px auto 0 auto; width: 50px; height: 50px; border-radius: 50%; background: {theme['bg']}; border: 2px solid #3498db; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.2); }}
         
-        /* MOBILE OVERRIDES */
         @media (max-width: 600px) {{
             #search-container {{ width: 90%; max-width: none; left: 5%; }}
             #filter-panel {{ top: 70px; right: 5%; }}
@@ -534,13 +442,11 @@ nav_html = f"""
 </head>
 <body>
     <div id="map-container">
-        
         <div id="nav-dashboard">
             <div style="font-size: 1.1rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center;">
                 <span id="nav-title" style="color:#3498db;">Navigating...</span>
                 <button class="stop-btn" onclick="stopNav()">🛑 Stop</button>
             </div>
-            
             <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
                 <div class="steer-compass">
                     <svg id="steer-arrow" style="transition: transform 0.1s ease-out;" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
@@ -550,7 +456,6 @@ nav_html = f"""
                 </div>
                 <div style="font-size: 0.8rem; opacity: 0.8; font-weight: bold; width: 80px;">TURN TO <br>TARGET</div>
             </div>
-
             <div class="stats-grid">
                 <div><div class="stat-lbl">Speed</div><div class="stat-val" id="gps-speed">--</div><div style="font-size:0.6rem" id="lbl-speed">mph</div></div>
                 <div><div class="stat-lbl">Distance</div><div class="stat-val" id="gps-dist" style="color:#e74c3c">--</div><div style="font-size:0.6rem" id="lbl-dist">miles</div></div>
@@ -572,14 +477,9 @@ nav_html = f"""
 
         <button id="recenter-btn" onclick="recenterMap()">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="22" y1="12" x2="18" y2="12"></line>
-                <line x1="6" y1="12" x2="2" y2="12"></line>
-                <line x1="12" y1="6" x2="12" y2="2"></line>
-                <line x1="12" y1="22" x2="12" y2="18"></line>
+                <circle cx="12" cy="12" r="10"></circle><line x1="22" y1="12" x2="18" y2="12"></line><line x1="6" y1="12" x2="2" y2="12"></line><line x1="12" y1="6" x2="12" y2="2"></line><line x1="12" y1="22" x2="12" y2="18"></line>
             </svg>
         </button>
-        
         <div id="map"></div>
     </div>
 
@@ -591,7 +491,6 @@ nav_html = f"""
     var places = {places_json};
     var markersLayer = L.layerGroup().addTo(map);
     
-    // Custom Icons
     var iconMap = {{
         "Dining": L.divIcon({{className: '', html: '<div class="map-marker marker-dining">🍔</div>', iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17]}}),
         "Fuel": L.divIcon({{className: '', html: '<div class="map-marker marker-fuel">⛽</div>', iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17]}}),
@@ -604,7 +503,6 @@ nav_html = f"""
         iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
     }});
 
-    // Render Markers & Bind Enhanced Tooltips/Popups
     window.renderMarkers = function() {{
         markersLayer.clearLayers();
         var checkboxes = document.querySelectorAll('.filter-cb');
@@ -613,10 +511,8 @@ nav_html = f"""
         places.forEach((p, index) => {{
             if (activeFilters.includes(p.type)) {{
                 var marker = L.marker([p.lat, p.lon], {{icon: iconMap[p.type] || iconMap["Dining"]}}).addTo(markersLayer);
-                
                 var tooltip = L.tooltip({{permanent: true, direction: 'bottom', className: 'poi-label', offset: [0, 5]}}).setContent(p.name);
                 marker.bindTooltip(tooltip);
-
                 var popupHTML = `
                     <div style="text-align: center; min-width: 140px; font-family: sans-serif;">
                         <b style="font-size: 1.1rem; color: #2c3e50;">${{p.name}}</b><br/>
@@ -632,7 +528,6 @@ nav_html = f"""
     }};
     renderMarkers();
 
-    // Smart Zoom Label Logic - Runs immediately to hide them initially
     function handleZoom() {{
         if (map.getZoom() >= 13) {{ document.getElementById('map').classList.add('show-labels'); }} 
         else {{ document.getElementById('map').classList.remove('show-labels'); }}
@@ -640,16 +535,12 @@ nav_html = f"""
     map.on('zoomend', handleZoom);
     handleZoom();
 
-    // Search Engine
     window.filterSearch = function() {{
         let query = document.getElementById('poi-search').value.toLowerCase();
         let resultsDiv = document.getElementById('search-results');
         resultsDiv.innerHTML = "";
-        
         if (query.length === 0) {{ resultsDiv.style.display = "none"; return; }}
-        
         let matches = places.filter(p => p.name.toLowerCase().includes(query) || p.type.toLowerCase().includes(query));
-        
         if (matches.length > 0) {{
             resultsDiv.style.display = "block";
             matches.forEach(m => {{
@@ -665,12 +556,9 @@ nav_html = f"""
                 }};
                 resultsDiv.appendChild(div);
             }});
-        }} else {{
-            resultsDiv.style.display = "none";
-        }}
+        }} else {{ resultsDiv.style.display = "none"; }}
     }};
 
-    // Global Nav Variables
     var watchId = null;
     var userMarker = null;
     var routeLine = null;
@@ -695,7 +583,6 @@ nav_html = f"""
         if (lastLat != null && lastLon != null) {{ map.setView([lastLat, lastLon], 15, {{animate: true}}); }}
     }};
 
-    // Orientation Logic
     function handleOrientation(event) {{
         if(!isNavigating) return;
         let newHeading = 0;
@@ -707,11 +594,8 @@ nav_html = f"""
 
     function updateCompassUI() {{
         if (!isNavigating) return;
-        
-        // Update Nav Chevron Rotation
         let navArrow = document.getElementById('map-nav-arrow');
         if (navArrow) navArrow.style.transform = `rotate(${{currentHeading}}deg)`;
-
         if (lastLat != null && currentTarget) {{
             const targetBearing = getBearing(lastLat, lastLon, currentTarget.lat, currentTarget.lon);
             let relativeBearing = targetBearing - currentHeading;
@@ -750,7 +634,6 @@ nav_html = f"""
         document.getElementById('lbl-speed').innerText = isMetric ? "km/h" : "mph";
         document.getElementById('lbl-dist').innerText = isMetric ? "km" : "miles";
         
-        // Let CSS push the map down, then recalculate map center physically
         setTimeout(function() {{ map.invalidateSize(); }}, 50);
 
         if(targetMarker) map.removeLayer(targetMarker);
@@ -783,7 +666,6 @@ nav_html = f"""
         document.getElementById('filter-panel').style.display = 'block';
         document.getElementById('recenter-btn').style.display = 'none';
         
-        // Resize map back up when dashboard closes
         setTimeout(function() {{ map.invalidateSize(); }}, 50);
         
         if(routeLine) map.removeLayer(routeLine);
@@ -801,7 +683,6 @@ nav_html = f"""
         var userLatLng = [lastLat, lastLon];
         var targetLatLng = [currentTarget.lat, currentTarget.lon];
 
-        // Draw/Update the Precision Arrow Icon
         if (!userMarker) {{
             let arrowHtml = `
             <div id="map-nav-arrow" class="nav-arrow-marker" style="transform: rotate(${{currentHeading}}deg);">
