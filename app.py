@@ -17,23 +17,31 @@ st.markdown("""
 
 st.title("⚓ Lanier Navigator")
 
-@st.cache_data(ttl=600) # Update every 10 mins
+@st.cache_data(ttl=600)
 def get_lake_data():
-    # USGS API for Lanier (Buford Dam)
-    url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400&parameterCd=00065,00010,00035,00036&siteStatus=all"
+    # Parameters: 00065 (Level), 00020 (Air Temp), 00035 (Wind Speed)
+    url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400&parameterCd=00065,00020,00035&siteStatus=all"
     try:
-        data = requests.get(url).json()
-        ts = data['value']['timeSeries']
-        # Map parameters to readable values
-        stats = {
-            "Level": ts[0]['values'][0]['value'][0]['value'],
-            "Temp": ts[1]['values'][0]['value'][0]['value'],
-            "Wind": ts[2]['values'][0]['value'][0]['value']
-        }
-        return stats
-    except:
+        response = requests.get(url).json()
+        ts_list = response['value']['timeSeries']
+        
+        data = {"Level": "N/A", "Temp": "N/A", "Wind": "N/A"}
+        
+        for ts in ts_list:
+            p_code = ts['variable']['variableCode'][0]['value']
+            val = ts['values'][0]['value'][0]['value']
+            
+            if p_code == "00065":
+                data["Level"] = val
+            elif p_code == "00020":
+                # Convert Celsius to Fahrenheit for the boater feel
+                data["Temp"] = round((float(val) * 9/5) + 32, 1)
+            elif p_code == "00035":
+                data["Wind"] = val
+                
+        return data
+    except Exception:
         return {"Level": "1070.0", "Temp": "N/A", "Wind": "0"}
-
 stats = get_lake_data()
 
 # Quick Metrics Bar
