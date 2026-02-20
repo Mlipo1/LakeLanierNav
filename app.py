@@ -633,6 +633,16 @@ nav_html = f"""
         isNavigating = true;
         mapLocked = true;
         
+        // 1. FOCUS MODE: Hide all other POIs
+        markersLayer.clearLayers();
+
+        // 2. Lock Parent Window Scrolling (Hijack Streamlit scroll)
+        try {{
+            window.parent.document.body.style.overflow = "hidden";
+            window.parent.document.querySelector('iframe').scrollIntoView({{behavior: "smooth"}});
+        }} catch(e) {{ console.log("Cross-origin scroll lock bypassed"); }}
+        
+        // 3. Update UI
         document.getElementById('nav-dashboard').classList.add('active');
         document.getElementById('search-container').style.display = 'none';
         document.getElementById('filter-panel').style.display = 'none';
@@ -666,6 +676,13 @@ nav_html = f"""
         window.removeEventListener('deviceorientation', handleOrientation, true);
         window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
 
+        // 1. Restore Parent Window Scrolling
+        try {{ window.parent.document.body.style.overflow = "auto"; }} catch(e) {{}}
+
+        // 2. Restore all POIs
+        renderMarkers();
+
+        // 3. Update UI
         document.getElementById('nav-dashboard').classList.remove('active');
         document.getElementById('search-container').style.display = 'block';
         document.getElementById('filter-panel').style.display = 'flex';
