@@ -26,10 +26,12 @@ def fetch_data():
     }
     
     # 1. Get Lake Level (USGS Buford Dam)
+    # Using 00062 for Reservoir Elevation instead of river gage height
     try:
-        usgs_url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400&parameterCd=00065"
+        usgs_url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400&parameterCd=00062"
         usgs_res = requests.get(usgs_url).json()
-        data["level"] = usgs_res['value']['timeSeries'][0]['values'][0]['value'][0]['value']
+        val = usgs_res['value']['timeSeries'][0]['values'][0]['value'][0]['value']
+        data["level"] = float(val)
     except Exception:
         pass
 
@@ -55,7 +57,7 @@ def calculate_chop(wind, gusts):
     # Simulated wave/chop factor based on wind speeds
     avg_force = (wind + gusts) / 2
     if avg_force < 5:
-        return "Glassy / Smooth", "chop-safe"
+        return "Glassy (Perfect for wakeboarding)", "chop-safe"
     elif avg_force < 12:
         return "Light Chop", "chop-safe"
     elif avg_force < 20:
@@ -68,9 +70,20 @@ d = fetch_data()
 direction_text = get_compass_dir(d['wind_dir'])
 chop_text, chop_class = calculate_chop(d['wind_mph'], d['gusts'])
 
+# Constants
+FULL_POOL = 1071.0
+
 # Top Row: Primary Stats
 c1, c2, c3 = st.columns(3)
-c1.metric("Lake Level", f"{d['level']} ft")
+
+# Calculate +/- from Full Pool and use Streamlit's native delta display
+if d['level'] != "N/A":
+    diff = round(d['level'] - FULL_POOL, 2)
+    # The 'delta' argument automatically shows a red down-arrow for negative numbers
+    c1.metric(label="Lake Level", value=f"{d['level']:.2f} ft", delta=f"{diff} ft (Full Pool)")
+else:
+    c1.metric("Lake Level", "N/A ft")
+
 c2.metric("Air Temp", f"{d['air_temp']} °F")
 c3.metric("Wind Speed", f"{d['wind_mph']} mph")
 
