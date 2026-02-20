@@ -78,6 +78,10 @@ st.markdown(f"""
     .metric-sub {{ font-size: 0.8rem; font-weight: 600; margin-top: 5px; color: {theme['sub_text']}; line-height: 1.3; }}
     .text-red {{ color: #e74c3c; }}
     
+    .chop-safe {{ color: #2ecc71; font-weight: 800; }}
+    .chop-warn {{ color: #f1c40f; font-weight: 800; }}
+    .chop-danger {{ color: #e74c3c; font-weight: 800; }}
+    
     .pill-container {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 25px; margin-top: 5px; }}
     .info-pill {{
         background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 30px; padding: 8px 15px;
@@ -127,7 +131,6 @@ st.markdown(f"""
         .metrics-grid .metric-card:nth-child(3) {{ grid-column: span 2; }}
         .metric-value {{ font-size: 1.6rem !important; }}
         div[data-testid="stToggle"] {{ width: 100%; display: flex; justify-content: center; }}
-        /* Wind Box Stacks on Mobile */
         .wind-merged {{ flex-direction: column; text-align: center; }}
         .wind-stats-box {{ width: 100%; padding: 15px; }}
     }}
@@ -197,10 +200,10 @@ def get_compass_dir(degrees):
 
 def calculate_chop(wind, gusts):
     avg_force = (wind + gusts) / 2
-    if avg_force < 5: return "Glassy", "#a2de96" # Bright Green
+    if avg_force < 5: return "Glassy", "#a2de96" 
     elif avg_force < 12: return "Light Chop", "#a2de96"
-    elif avg_force < 20: return "Choppy (Small Boat Caution)", "#fde047" # Bright Yellow
-    else: return "Rough / Whitecaps", "#fca5a5" # Bright Red
+    elif avg_force < 20: return "Choppy (Small Boat Caution)", "#fde047" 
+    else: return "Rough / Whitecaps", "#fca5a5" 
 
 def calculate_boat_score(d, wave):
     score = 100 - (d["wind_mph"] * 1.5) - (d["rain_chance"] * 0.5) - (wave * 8)
@@ -245,7 +248,6 @@ else:
 
 direction_text = get_compass_dir(d['wind_dir'])
 chop_text, chop_color = calculate_chop(d['wind_mph'], d['gusts'])
-# Arrow points exactly where the wind is coming from (Meteorological standard)
 wind_rotation = d['wind_dir']
 
 # --- Top Level HTML Formatting ---
@@ -343,40 +345,41 @@ with sim_col:
     """
     st.markdown(wave_sim_html, unsafe_allow_html=True)
 
-# --- Consolidated Wind Section ---
+# --- Consolidated Wind Section (FIXED NO-INDENT STRING) ---
 st.markdown("### 💨 Live Wind Details")
-st.markdown(f"""
+
+wind_html = f"""
 <div class="wind-container">
-    <div class="wind-merged">
-        <div style="text-align: center;">
-            <div style="font-size: 0.8rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; opacity: 0.9;">WIND DIR</div>
-            <div style="transform: rotate({wind_rotation}deg);" class="animated-wind">
-                <svg width="45" height="45" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                    <line x1="12" y1="19" x2="12" y2="5"></line>
-                    <polyline points="5 12 12 5 19 12"></polyline>
-                </svg>
-            </div>
-            <div style="font-size: 1.5rem; font-weight: 900; margin-top: 8px;">{direction_text}</div>
-            <div style="font-size: 0.9rem; opacity: 0.8;">{d['wind_dir']}°</div>
-        </div>
-        
-        <div class="wind-stats-box">
-            <div style="font-size: 0.8rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px; opacity: 0.9;">SURFACE CONDITION</div>
-            <div style="color: {chop_color}; font-weight: 800; font-size: 1.25rem; margin-bottom: 15px;">{chop_text}</div>
-            <div style="display: flex; justify-content: space-around; gap: 15px;">
-                <div>
-                    <div style="font-size: 0.75rem; text-transform: uppercase; opacity: 0.8;">Sustained</div>
-                    <div style="font-size: 1.3rem; font-weight: bold;">{disp_wind} <span style="font-size:0.75rem;">{unit_speed}</span></div>
-                </div>
-                <div>
-                    <div style="font-size: 0.75rem; text-transform: uppercase; opacity: 0.8;">Gusts</div>
-                    <div style="font-size: 1.3rem; font-weight: bold; color: #ff7675;">{disp_gusts} <span style="font-size:0.75rem;">{unit_speed}</span></div>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="wind-merged">
+<div style="text-align: center;">
+<div style="font-size: 0.8rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; opacity: 0.9;">WIND DIR</div>
+<div style="transform: rotate({wind_rotation}deg);" class="animated-wind">
+<svg width="45" height="45" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<line x1="12" y1="19" x2="12" y2="5"></line>
+<polyline points="5 12 12 5 19 12"></polyline>
+</svg>
 </div>
-""", unsafe_allow_html=True)
+<div style="font-size: 1.5rem; font-weight: 900; margin-top: 8px;">{direction_text}</div>
+<div style="font-size: 0.9rem; opacity: 0.8;">{d['wind_dir']}°</div>
+</div>
+<div class="wind-stats-box">
+<div style="font-size: 0.8rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px; opacity: 0.9;">SURFACE CONDITION</div>
+<div style="color: {chop_color}; font-weight: 800; font-size: 1.25rem; margin-bottom: 15px;">{chop_text}</div>
+<div style="display: flex; justify-content: space-around; gap: 15px;">
+<div>
+<div style="font-size: 0.75rem; text-transform: uppercase; opacity: 0.8;">Sustained</div>
+<div style="font-size: 1.3rem; font-weight: bold;">{disp_wind} <span style="font-size:0.75rem;">{unit_speed}</span></div>
+</div>
+<div>
+<div style="font-size: 0.75rem; text-transform: uppercase; opacity: 0.8;">Gusts</div>
+<div style="font-size: 1.3rem; font-weight: bold; color: #ff7675;">{disp_gusts} <span style="font-size:0.75rem;">{unit_speed}</span></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+"""
+st.markdown(wind_html, unsafe_allow_html=True)
 
 # --- Map ---
 st.markdown("### 📍 Dock & Dine GPS")
@@ -419,3 +422,26 @@ with st.expander("⛽ Fuel Range Estimator"):
             st.success(f"Safe Range (30% reserve): {round(safe_range * 1.60934, 1)} kilometers")
         else:
             st.success(f"Safe Range (30% reserve): {round(safe_range, 1)} miles")
+
+with st.expander("🌉 Bridge Clearance Calculator"):
+    st.markdown("Calculate clearance based on the live water level.")
+    boat_height = st.number_input("Boat Height Above Waterline (ft)", min_value=1.0, step=0.5, value=12.0)
+    
+    if d['level'] != "N/A":
+        # Known clearances at full pool (1071 ft)
+        browns_clearance_full = 53.0
+        boling_clearance_full = 54.0
+        
+        # Calculate current clearance (Full Pool + Difference in current water level)
+        current_browns = browns_clearance_full + (FULL_POOL_FT - d['level'])
+        current_boling = boling_clearance_full + (FULL_POOL_FT - d['level'])
+        
+        st.markdown(f"**Browns Bridge Clearance:** {round(current_browns, 1)} ft")
+        if current_browns > boat_height: st.success("🟢 Safe to pass Browns Bridge")
+        else: st.error("🔴 DO NOT PASS Browns Bridge")
+            
+        st.markdown(f"**Boling Bridge Clearance:** {round(current_boling, 1)} ft")
+        if current_boling > boat_height: st.success("🟢 Safe to pass Boling Bridge")
+        else: st.error("🔴 DO NOT PASS Boling Bridge")
+    else:
+        st.warning("Lake level data currently unavailable.")
