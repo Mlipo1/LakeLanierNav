@@ -1,0 +1,15 @@
+{
+  "name": "Lake Lanier Navigator",
+  "short_name": "LanierNav",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1f77b4",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/854/854894.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
