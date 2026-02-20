@@ -388,7 +388,6 @@ st.markdown(wind_html, unsafe_allow_html=True)
 # --- Map ---
 st.markdown("### 📍 Dock & Dine Navigation")
 
-# Expanded POIs with distinct categories
 places = [
     {"name":"Pig Tales (Aqualand)","lat":34.148,"lon":-83.991,"type":"Dining"},
     {"name":"Fish Tales (Hideaway)","lat":34.175,"lon":-83.961,"type":"Dining"},
@@ -401,7 +400,6 @@ places = [
     {"name":"Port Royale Marina","lat":34.228,"lon":-84.002,"type":"Marina"}
 ]
 
-# Pass data securely to JS
 places_json = json.dumps(places)
 map_tile_url = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" if st.session_state.dark_mode else "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
 js_metric_flag = "true" if st.session_state.is_metric else "false"
@@ -428,6 +426,14 @@ nav_html = f"""
         .filter-cb {{ margin-right: 8px; transform: scale(1.2); cursor: pointer; }}
         .filter-row {{ margin-bottom: 8px; display: flex; align-items: center; cursor: pointer; }}
 
+        /* Re-Center Button */
+        #recenter-btn {{
+            display: none; position: absolute; bottom: 20px; right: 20px; z-index: 1000;
+            background: #3498db; color: white; border: none; padding: 12px 20px;
+            border-radius: 30px; font-weight: 800; box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            cursor: pointer; font-size: 1rem;
+        }}
+
         /* Navigation Dashboard Overlay */
         #nav-dashboard {{
             display: none; position: absolute; top: 0; left: 0; width: 100%; z-index: 1001;
@@ -451,11 +457,13 @@ nav_html = f"""
         .marker-fuel {{ border-color: #f39c12; background: #ffeaa7; }}
         .marker-marina {{ border-color: #3498db; background: #81ecec; }}
         
-        /* The Boat Icon */
+        /* The Boat Icon - Ensures rotation happens perfectly in the center */
         .boat-marker {{
             font-size: 32px; line-height: 32px; text-align: center;
             filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.5));
-            transition: transform 0.3s linear;
+            transition: transform 0.1s ease-out;
+            transform-origin: center center;
+            display: flex; align-items: center; justify-content: center;
         }}
 
         /* Buttons */
@@ -478,6 +486,8 @@ nav_html = f"""
             <label class="filter-row" style="margin-bottom:0;"><input type="checkbox" class="filter-cb" value="Marina" checked onchange="renderMarkers()"> ⚓ Marinas</label>
         </div>
 
+        <button id="recenter-btn" onclick="recenterMap()">🎯 Center</button>
+
         <div id="nav-dashboard">
             <div style="font-size: 1.1rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center;">
                 <span id="nav-title" style="color:#3498db;">Navigating...</span>
@@ -486,7 +496,7 @@ nav_html = f"""
             
             <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
                 <div class="steer-compass">
-                    <svg id="nav-arrow" style="transition: transform 0.3s;" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <svg id="nav-arrow" style="transition: transform 0.1s ease-out;" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="12" y1="19" x2="12" y2="5"></line>
                         <polyline points="5 12 12 5 19 12"></polyline>
                     </svg>
@@ -499,7 +509,7 @@ nav_html = f"""
                 <div><div class="stat-lbl">Distance</div><div class="stat-val" id="gps-dist" style="color:#e74c3c">--</div><div style="font-size:0.6rem" id="lbl-dist">miles</div></div>
                 <div><div class="stat-lbl">Heading</div><div class="stat-val" id="gps-heading">--</div><div style="font-size:0.6rem">deg</div></div>
             </div>
-            <div class="eta-box">⏱️ ETA: <span id="gps-eta">Waiting for GPS lock...</span></div>
+            <div class="eta-box">⏱️ ETA: <span id="gps-eta">Waiting for GPS...</span></div>
         </div>
         
         <div id="map"></div>
@@ -513,7 +523,6 @@ nav_html = f"""
     var places = {places_json};
     var markersLayer = L.layerGroup().addTo(map);
     
-    // Custom Icons mapping
     var iconMap = {{
         "Dining": L.divIcon({{className: '', html: '<div class="map-marker marker-dining">🍔</div>', iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17]}}),
         "Fuel": L.divIcon({{className: '', html: '<div class="map-marker marker-fuel">⛽</div>', iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17]}}),
@@ -526,7 +535,6 @@ nav_html = f"""
         iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
     }});
 
-    // Rendering Markers based on filters
     window.renderMarkers = function() {{
         markersLayer.clearLayers();
         var checkboxes = document.querySelectorAll('.filter-cb');
@@ -546,21 +554,72 @@ nav_html = f"""
             }}
         }});
     }};
-    
-    // Initial Render
     renderMarkers();
 
-    // Global Navigation Variables
+    // Global Variables
     var watchId = null;
     var userMarker = null;
     var routeLine = null;
     var targetMarker = null;
     var currentTarget = null;
     var isNavigating = false;
+    var mapLocked = true;
+    var lastLat = null;
+    var lastLon = null;
+    var currentHeading = 0; // Hardware compass heading
+
+    // Unlock map if user drags it
+    map.on('dragstart', function() {{
+        if (isNavigating) {{
+            mapLocked = false;
+            document.getElementById('recenter-btn').style.display = 'block';
+        }}
+    }});
+
+    // Recenter Button logic
+    window.recenterMap = function() {{
+        mapLocked = true;
+        document.getElementById('recenter-btn').style.display = 'none';
+        if (lastLat != null && lastLon != null) {{
+            map.setView([lastLat, lastLon], 15, {{animate: true}});
+        }}
+    }};
+
+    // Compass / Device Orientation Logic
+    function handleOrientation(event) {{
+        if(!isNavigating) return;
+        
+        let newHeading = 0;
+        if (event.webkitCompassHeading) {{
+            // Native iOS Compass
+            newHeading = event.webkitCompassHeading;
+        }} else if (event.alpha != null) {{
+            // Android / Standard fallback
+            newHeading = 360 - event.alpha;
+        }}
+        currentHeading = newHeading;
+        updateCompassUI();
+    }}
+
+    function updateCompassUI() {{
+        if (!isNavigating || lastLat == null || !currentTarget) return;
+        
+        // 1. Physically spin the boat icon
+        let boatEl = document.getElementById('boat-icon');
+        if (boatEl) boatEl.style.transform = `rotate(${{currentHeading}}deg)`;
+
+        // 2. Mathematically spin the steering arrow
+        const targetBearing = getBearing(lastLat, lastLon, currentTarget.lat, currentTarget.lon);
+        let relativeBearing = targetBearing - currentHeading;
+        let arrowEl = document.getElementById('nav-arrow');
+        if (arrowEl) arrowEl.style.transform = `rotate(${{relativeBearing}}deg)`;
+        
+        document.getElementById("gps-heading").innerText = Math.round(currentHeading) + "°";
+    }}
 
     // Advanced Marine Math
     function getDistance(lat1, lon1, lat2, lon2) {{
-        const R = isMetric ? 6371 : 3958.8; // km or miles
+        const R = isMetric ? 6371 : 3958.8; 
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
         const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
@@ -580,19 +639,33 @@ nav_html = f"""
         currentTarget = places[index];
         map.closePopup();
         isNavigating = true;
+        mapLocked = true;
         
-        // Update UI Text
         document.getElementById('nav-dashboard').style.display = 'block';
         document.getElementById('filter-panel').style.display = 'none';
+        document.getElementById('recenter-btn').style.display = 'none';
         document.getElementById('nav-title').innerText = "To: " + currentTarget.name;
         document.getElementById('lbl-speed').innerText = isMetric ? "km/h" : "mph";
         document.getElementById('lbl-dist').innerText = isMetric ? "km" : "miles";
         
-        // Set target pin
         if(targetMarker) map.removeLayer(targetMarker);
         targetMarker = L.marker([currentTarget.lat, currentTarget.lon], {{icon: targetIcon}}).addTo(map);
 
-        // Hardware GPS request
+        // Request Gyro/Compass Access (Required for iOS 13+)
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {{
+            DeviceOrientationEvent.requestPermission()
+                .then(permissionState => {{
+                    if (permissionState === 'granted') {{
+                        window.addEventListener('deviceorientation', handleOrientation, true);
+                    }}
+                }}).catch(console.error);
+        }} else {{
+            // Android / Older browsers
+            window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+            window.addEventListener('deviceorientation', handleOrientation, true);
+        }}
+
+        // Start GPS Polling
         if (navigator.geolocation) {{
             watchId = navigator.geolocation.watchPosition(updateNav, handleError, {{
                 enableHighAccuracy: true, maximumAge: 1000, timeout: 5000
@@ -602,9 +675,16 @@ nav_html = f"""
 
     window.stopNav = function() {{
         isNavigating = false;
+        mapLocked = false;
         if(watchId) navigator.geolocation.clearWatch(watchId);
+        
+        // Remove Compass Listeners to save battery
+        window.removeEventListener('deviceorientation', handleOrientation, true);
+        window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
+
         document.getElementById('nav-dashboard').style.display = 'none';
         document.getElementById('filter-panel').style.display = 'block';
+        document.getElementById('recenter-btn').style.display = 'none';
         
         if(routeLine) map.removeLayer(routeLine);
         if(targetMarker) map.removeLayer(targetMarker);
@@ -616,25 +696,25 @@ nav_html = f"""
     function updateNav(position) {{
         if(!isNavigating || !currentTarget) return;
         
-        var lat = position.coords.latitude;
-        var lon = position.coords.longitude;
-        var heading = position.coords.heading || 0;
-        var userLatLng = [lat, lon];
+        lastLat = position.coords.latitude;
+        lastLon = position.coords.longitude;
+        var userLatLng = [lastLat, lastLon];
         var targetLatLng = [currentTarget.lat, currentTarget.lon];
 
-        // 1. Update the Rotating Boat Icon
+        // 1. Draw/Update the Boat Icon
         if (!userMarker) {{
-            let boatHtml = `<div id="boat-icon" class="boat-marker" style="transform: rotate(${{heading}}deg);">🚤</div>`;
-            var icon = L.divIcon({{className: '', html: boatHtml, iconSize: [32, 32], iconAnchor: [16, 16]}});
+            // Provide a wrapper div to ensure the CSS transform origin works perfectly
+            let boatHtml = `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;"><div id="boat-icon" class="boat-marker" style="transform: rotate(${{currentHeading}}deg);">🚤</div></div>`;
+            var icon = L.divIcon({{className: '', html: boatHtml, iconSize: [40, 40], iconAnchor: [20, 20]}});
             userMarker = L.marker(userLatLng, {{icon: icon, zIndexOffset: 1000}}).addTo(map);
         }} else {{
             userMarker.setLatLng(userLatLng);
-            let boatEl = document.getElementById('boat-icon');
-            if (boatEl) boatEl.style.transform = `rotate(${{heading}}deg)`;
         }}
 
-        // 2. Lock Map to Boat
-        map.setView(userLatLng, 14, {{animate: true}});
+        // 2. Strict Map Lock
+        if (mapLocked) {{
+            map.setView(userLatLng, 15, {{animate: true}});
+        }}
 
         // 3. Draw Route Line
         if (!routeLine) {{
@@ -643,10 +723,8 @@ nav_html = f"""
             routeLine.setLatLngs([userLatLng, targetLatLng]);
         }}
 
-        // 4. Mathematical Calculations
-        const dist = getDistance(lat, lon, currentTarget.lat, currentTarget.lon);
-        const targetBearing = getBearing(lat, lon, currentTarget.lat, currentTarget.lon);
-        
+        // 4. Update Dashboard Math
+        const dist = getDistance(lastLat, lastLon, currentTarget.lat, currentTarget.lon);
         document.getElementById("gps-dist").innerText = dist.toFixed(2);
 
         let speed_val = 0;
@@ -657,15 +735,6 @@ nav_html = f"""
             document.getElementById("gps-speed").innerText = "0.0";
         }}
 
-        if (position.coords.heading != null) {{
-            document.getElementById("gps-heading").innerText = Math.round(heading) + "°";
-        }}
-
-        // Calculate visual steering arrow (Target Bearing relative to Boat Heading)
-        let relativeBearing = targetBearing - heading;
-        let arrowEl = document.getElementById('nav-arrow');
-        if (arrowEl) arrowEl.style.transform = `rotate(${{relativeBearing}}deg)`;
-
         if (speed_val > 2) {{
             const hours = dist / speed_val;
             const mins = Math.round(hours * 60);
@@ -673,11 +742,14 @@ nav_html = f"""
         }} else {{
             document.getElementById("gps-eta").innerText = "Start moving...";
         }}
+        
+        // Trigger compass update just in case
+        updateCompassUI();
     }}
 
     function handleError(error) {{
         console.warn(error);
-        document.getElementById("gps-eta").innerText = "GPS Access Denied/Unavailable";
+        document.getElementById("gps-eta").innerText = "GPS Access Denied";
     }}
     </script>
 </body>
