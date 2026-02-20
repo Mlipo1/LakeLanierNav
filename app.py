@@ -384,20 +384,73 @@ st.markdown(wind_html, unsafe_allow_html=True)
 # ---------------------------------------------------------
 st.markdown("### 📍 Dock & Dine Navigation")
 
-# Expanded POIs with distinct categories
+# ACCURATE GPS Coordinates & Metadata
 places = [
-    {"name":"Pig Tales (Aqualand)","lat":34.148,"lon":-83.991,"type":"Dining"},
-    {"name":"Fish Tales (Hideaway)","lat":34.175,"lon":-83.961,"type":"Dining"},
-    {"name":"Pelican Pete's","lat":34.225,"lon":-84.001,"type":"Dining"},
-    {"name":"Twisted Oar","lat":34.188,"lon":-84.008,"type":"Dining"},
-    {"name":"LandShark / Margaritaville","lat":34.1852,"lon":-83.9854,"type":"Dining"},
-    {"name":"Holiday Marina (Gas)","lat":34.173,"lon":-84.017,"type":"Fuel"},
-    {"name":"Sunset Cove (Gas)","lat":34.183,"lon":-83.987,"type":"Fuel"},
-    {"name":"Aqualand Marina","lat":34.145,"lon":-83.994,"type":"Marina"},
-    {"name":"Port Royale Marina","lat":34.228,"lon":-84.002,"type":"Marina"}
+    {
+        "name": "Pig Tales (Aqualand)",
+        "lat": 34.1805, "lon": -83.9515,
+        "type": "Dining",
+        "hours": "Daily 11am - 10pm (Seasonal)",
+        "web": "https://www.pigtaleslakelanier.com/"
+    },
+    {
+        "name": "Fish Tales (Hideaway)",
+        "lat": 34.1833, "lon": -83.9392,
+        "type": "Dining",
+        "hours": "Daily 11am - 10pm (Seasonal)",
+        "web": "https://www.fishtaleslakelanier.com/"
+    },
+    {
+        "name": "Pelican Pete's",
+        "lat": 34.2432, "lon": -83.9617,
+        "type": "Dining",
+        "hours": "Fri-Sun 11am - 9pm (Seasonal)",
+        "web": "https://www.pelicanpetes.com/"
+    },
+    {
+        "name": "Twisted Oar",
+        "lat": 34.1692, "lon": -84.0047,
+        "type": "Dining",
+        "hours": "Daily 11am - 10pm",
+        "web": "https://www.twistedoar.com/"
+    },
+    {
+        "name": "LandShark (Margaritaville)",
+        "lat": 34.1852, "lon": -84.0150,
+        "type": "Dining",
+        "hours": "Daily 11am - 10pm",
+        "web": "https://www.margaritavilleresorts.com/"
+    },
+    {
+        "name": "Holiday Marina (Gas)",
+        "lat": 34.1712, "lon": -84.0047,
+        "type": "Fuel",
+        "hours": "Daily 9am - 6pm",
+        "web": "https://holidaylakelanier.com/"
+    },
+    {
+        "name": "Sunset Cove (Gas)",
+        "lat": 34.1830, "lon": -84.0180,
+        "type": "Fuel",
+        "hours": "Daily 9am - 6pm",
+        "web": "https://www.margaritavilleresorts.com/"
+    },
+    {
+        "name": "Aqualand Marina",
+        "lat": 34.1793, "lon": -83.9538,
+        "type": "Marina",
+        "hours": "Daily 9am - 5pm",
+        "web": "https://shmarinas.com/locations/safe-harbor-aqualand/"
+    },
+    {
+        "name": "Port Royale Marina",
+        "lat": 34.2450, "lon": -83.9620,
+        "type": "Marina",
+        "hours": "Daily 8am - 5pm",
+        "web": "https://www.bestinboating.com/port_royale/"
+    }
 ]
 
-# Pass data securely to JS
 places_json = json.dumps(places)
 map_tile_url = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" if st.session_state.dark_mode else "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
 js_metric_flag = "true" if st.session_state.is_metric else "false"
@@ -411,8 +464,20 @@ nav_html = f"""
     <style>
         body {{ margin: 0; padding: 0; font-family: -apple-system, sans-serif; background: transparent; }}
         
-        #map-container {{ position: relative; height: 550px; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid {theme['border']}; }}
-        #map {{ height: 100%; width: 100%; z-index: 1; }}
+        /* Flexbox Layout Fix: Dashboard pushes map down instead of overlaying */
+        #map-container {{ 
+            display: flex; flex-direction: column; position: relative; 
+            height: 550px; width: 100%; border-radius: 12px; overflow: hidden; 
+            border: 1px solid {theme['border']}; 
+        }}
+        #map {{ flex: 1; width: 100%; z-index: 1; }}
+        
+        /* Navigation Dashboard (Now sits IN the flexbox, no absolute positioning) */
+        #nav-dashboard {{
+            display: none; width: 100%; z-index: 1001;
+            background: {theme['card_bg']}; color: {theme['text']}; padding: 15px;
+            border-bottom: 3px solid #3498db; box-sizing: border-box;
+        }}
         
         /* Search Bar Setup */
         #search-container {{
@@ -428,9 +493,7 @@ nav_html = f"""
             border: 1px solid {theme['border']}; box-shadow: 0 4px 15px rgba(0,0,0,0.4); overflow: hidden;
             max-height: 250px; overflow-y: auto;
         }}
-        .search-item {{
-            padding: 12px 15px; cursor: pointer; border-bottom: 1px solid {theme['border']}; color: {theme['text']};
-        }}
+        .search-item {{ padding: 12px 15px; cursor: pointer; border-bottom: 1px solid {theme['border']}; color: {theme['text']}; }}
         .search-item:last-child {{ border-bottom: none; }}
         .search-item:hover {{ background: rgba(52, 152, 219, 0.15); }}
 
@@ -443,14 +506,6 @@ nav_html = f"""
         }}
         .filter-cb {{ margin-right: 8px; transform: scale(1.2); cursor: pointer; }}
         .filter-row {{ margin-bottom: 8px; display: flex; align-items: center; cursor: pointer; }}
-
-        /* Navigation Dashboard Overlay */
-        #nav-dashboard {{
-            display: none; position: absolute; top: 0; left: 0; width: 100%; z-index: 1001;
-            background: {theme['card_bg']}; color: {theme['text']}; padding: 15px;
-            border-bottom: 3px solid #3498db; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-            box-sizing: border-box; border-radius: 12px 12px 0 0;
-        }}
         
         .stats-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; margin-top: 15px; }}
         .stat-val {{ font-size: 1.4rem; font-weight: 900; }}
@@ -467,14 +522,12 @@ nav_html = f"""
         .marker-fuel {{ border-color: #f39c12; background: #ffeaa7; }}
         .marker-marina {{ border-color: #3498db; background: #81ecec; }}
         
-        /* Smart Zoom Labels - ADDED !important tags to override Leaflet inline styles */
+        /* Smart Zoom Labels (Using !important to override Leaflet default inline opacity) */
         .poi-label {{
             background: transparent !important; border: none !important; box-shadow: none !important; 
-            color: {theme['text']} !important;
-            font-weight: 900 !important; font-size: 0.9rem !important;
+            color: {theme['text']} !important; font-weight: 900 !important; font-size: 0.9rem !important;
             text-shadow: 2px 2px 0 {theme['bg']}, -2px -2px 0 {theme['bg']}, 2px -2px 0 {theme['bg']}, -2px 2px 0 {theme['bg']} !important;
-            opacity: 0 !important; pointer-events: none !important;
-            transition: opacity 0.3s ease !important;
+            opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s ease !important;
         }}
         #map.show-labels .poi-label {{ opacity: 1 !important; }}
 
@@ -513,27 +566,6 @@ nav_html = f"""
 <body>
     <div id="map-container">
         
-        <div id="search-container">
-            <input type="text" id="poi-search" placeholder="🔍 Search lake destinations..." oninput="filterSearch()">
-            <div id="search-results"></div>
-        </div>
-
-        <div id="filter-panel">
-            <label class="filter-row"><input type="checkbox" class="filter-cb" value="Dining" checked onchange="renderMarkers()"> 🍽️ Dining</label>
-            <label class="filter-row"><input type="checkbox" class="filter-cb" value="Fuel" checked onchange="renderMarkers()"> ⛽ Fuel</label>
-            <label class="filter-row" style="margin-bottom:0;"><input type="checkbox" class="filter-cb" value="Marina" checked onchange="renderMarkers()"> ⚓ Marinas</label>
-        </div>
-
-        <button id="recenter-btn" onclick="recenterMap()">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="22" y1="12" x2="18" y2="12"></line>
-                <line x1="6" y1="12" x2="2" y2="12"></line>
-                <line x1="12" y1="6" x2="12" y2="2"></line>
-                <line x1="12" y1="22" x2="12" y2="18"></line>
-            </svg>
-        </button>
-
         <div id="nav-dashboard">
             <div style="font-size: 1.1rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center;">
                 <span id="nav-title" style="color:#3498db;">Navigating...</span>
@@ -557,6 +589,27 @@ nav_html = f"""
             </div>
             <div class="eta-box">⏱️ ETA: <span id="gps-eta">Waiting for GPS lock...</span></div>
         </div>
+
+        <div id="search-container">
+            <input type="text" id="poi-search" placeholder="🔍 Search lake destinations..." oninput="filterSearch()">
+            <div id="search-results"></div>
+        </div>
+
+        <div id="filter-panel">
+            <label class="filter-row"><input type="checkbox" class="filter-cb" value="Dining" checked onchange="renderMarkers()"> 🍽️ Dining</label>
+            <label class="filter-row"><input type="checkbox" class="filter-cb" value="Fuel" checked onchange="renderMarkers()"> ⛽ Fuel</label>
+            <label class="filter-row" style="margin-bottom:0;"><input type="checkbox" class="filter-cb" value="Marina" checked onchange="renderMarkers()"> ⚓ Marinas</label>
+        </div>
+
+        <button id="recenter-btn" onclick="recenterMap()">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="22" y1="12" x2="18" y2="12"></line>
+                <line x1="6" y1="12" x2="2" y2="12"></line>
+                <line x1="12" y1="6" x2="12" y2="2"></line>
+                <line x1="12" y1="22" x2="12" y2="18"></line>
+            </svg>
+        </button>
         
         <div id="map"></div>
     </div>
@@ -582,7 +635,7 @@ nav_html = f"""
         iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
     }});
 
-    // Render Markers & Bind Tooltips
+    // Render Markers & Bind Enhanced Tooltips/Popups
     window.renderMarkers = function() {{
         markersLayer.clearLayers();
         var checkboxes = document.querySelectorAll('.filter-cb');
@@ -592,14 +645,15 @@ nav_html = f"""
             if (activeFilters.includes(p.type)) {{
                 var marker = L.marker([p.lat, p.lon], {{icon: iconMap[p.type] || iconMap["Dining"]}}).addTo(markersLayer);
                 
-                // Add the permanent label (Hidden via CSS until zoomed in)
                 var tooltip = L.tooltip({{permanent: true, direction: 'bottom', className: 'poi-label', offset: [0, 5]}}).setContent(p.name);
                 marker.bindTooltip(tooltip);
 
                 var popupHTML = `
-                    <div style="text-align: center; min-width: 130px; font-family: sans-serif;">
+                    <div style="text-align: center; min-width: 140px; font-family: sans-serif;">
                         <b style="font-size: 1.1rem; color: #2c3e50;">${{p.name}}</b><br/>
                         <span style="font-size: 0.8rem; color: #7f8c8d;">${{p.type}}</span><br/>
+                        <div style="font-size: 0.8rem; margin: 8px 0; color: #333;">🕒 ${{p.hours}}</div>
+                        <a href="${{p.web}}" target="_blank" style="font-size: 0.85rem; color: #3498db; text-decoration: none; font-weight: bold;">🌐 Visit Website</a><br/>
                         <button class="start-btn" onclick="startNav(${{index}})">Start Navigating</button>
                     </div>
                 `;
@@ -609,13 +663,13 @@ nav_html = f"""
     }};
     renderMarkers();
 
-    // Smart Zoom Label Logic - WITH INITIALIZATION CHECK
+    // Smart Zoom Label Logic - Runs immediately to hide them initially
     function handleZoom() {{
         if (map.getZoom() >= 13) {{ document.getElementById('map').classList.add('show-labels'); }} 
         else {{ document.getElementById('map').classList.remove('show-labels'); }}
     }}
     map.on('zoomend', handleZoom);
-    handleZoom(); // Run immediately on load so they start hidden!
+    handleZoom();
 
     // Search Engine
     window.filterSearch = function() {{
@@ -637,6 +691,7 @@ nav_html = f"""
                 div.onclick = function() {{
                     document.getElementById('poi-search').value = "";
                     resultsDiv.style.display = "none";
+                    map.setView([m.lat, m.lon], 14, {{animate: true}}); // Auto zoom to pin
                     startNav(idx);
                 }};
                 resultsDiv.appendChild(div);
@@ -726,6 +781,7 @@ nav_html = f"""
         document.getElementById('lbl-speed').innerText = isMetric ? "km/h" : "mph";
         document.getElementById('lbl-dist').innerText = isMetric ? "km" : "miles";
         
+        // Let CSS push the map down, then recalculate map center physically
         setTimeout(function() {{ map.invalidateSize(); }}, 50);
 
         if(targetMarker) map.removeLayer(targetMarker);
@@ -758,6 +814,7 @@ nav_html = f"""
         document.getElementById('filter-panel').style.display = 'block';
         document.getElementById('recenter-btn').style.display = 'none';
         
+        // Resize map back up when dashboard closes
         setTimeout(function() {{ map.invalidateSize(); }}, 50);
         
         if(routeLine) map.removeLayer(routeLine);
@@ -775,7 +832,7 @@ nav_html = f"""
         var userLatLng = [lastLat, lastLon];
         var targetLatLng = [currentTarget.lat, currentTarget.lon];
 
-        // 1. Draw/Update the Precision Arrow Icon
+        // Draw/Update the Precision Arrow Icon
         if (!userMarker) {{
             let arrowHtml = `
             <div id="map-nav-arrow" class="nav-arrow-marker" style="transform: rotate(${{currentHeading}}deg);">
