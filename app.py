@@ -247,6 +247,102 @@ def calculate_chop(wind, gusts):
 d = fetch_data()
 FULL_POOL_FT = 1071.0
 
+# -------------------------
+# ENHANCED FEATURES
+# -------------------------
+
+from datetime import timedelta
+
+# 24h Level Trend
+@st.cache_data(ttl=300)
+def fetch_level_trend():
+    try:
+        end = datetime.utcnow()
+        start = end - timedelta(hours=24)
+        url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400&parameterCd=00062&startDT={start.isoformat()}&endDT={end.isoformat()}"
+        res = requests.get(url, timeout=5).json()
+        values = res['value']['timeSeries'][0]['values'][0]['value']
+        first = float(values[0]['value'])
+        last = float(values[-1]['value'])
+        return round(last - first, 2)
+    except:
+        return 0
+
+trend_24h = fetch_level_trend()
+
+# Wave Estimation
+def estimate_wave_height(wind):
+    return round(0.016 * (wind ** 1.5), 1)
+
+wave_height = estimate_wave_height(d["wind_mph"])
+
+# Safety Banner
+def get_safety_alert(d, wave):
+    alerts = []
+    if d["wind_mph"] >= 20 or d["gusts"] >= 30:
+        alerts.append("High Wind")
+    if d["rain_chance"] >= 70:
+        alerts.append("Heavy Rain")
+    if d["visibility"] != "N/A" and d["visibility"] < 2:
+        alerts.append("Low Visibility")
+    if wave >= 3:
+        alerts.append("High Waves")
+    return alerts
+
+alerts = get_safety_alert(d, wave_height)
+
+if alerts:
+    st.markdown(f"""
+        <div style="
+            background:#e74c3c;
+            padding:12px;
+            border-radius:12px;
+            color:white;
+            font-weight:700;
+            text-align:center;
+            margin-bottom:15px;">
+            ⚠️ {" | ".join(alerts)}
+        </div>
+    """, unsafe_allow_html=True)
+
+# Boating Score
+def calculate_boat_score(d, wave):
+    score = 100
+    score -= d["wind_mph"] * 1.5
+    score -= d["rain_chance"] * 0.5
+    score -= wave * 8
+    return max(0, min(100, round(score)))
+
+boat_score = calculate_boat_score(d, wave_height)
+
+if boat_score >= 85:
+    score_label = "🟢 Excellent"
+elif boat_score >= 65:
+    score_label = "🟡 Good"
+elif boat_score >= 40:
+    score_label = "🟠 Marginal"
+else:
+    score_label = "🔴 Stay Home"
+
+st.markdown(f"""
+<div class="metric-card" style="margin-bottom:20px;">
+    <div class="metric-title">Today's Boating Score</div>
+    <div class="metric-value">{boat_score}/100</div>
+    <div class="metric-sub">{score_label}</div>
+</div>
+""", unsafe_allow_html=True)
+
+# Boat Type
+boat_type = st.selectbox(
+    "Boat Type",
+    ["Pontoon","Ski Boat","Fishing Boat","Jet Ski"]
+)
+
+if boat_type == "Jet Ski":
+    wave_height *= 1.2
+elif boat_type == "Pontoon":
+    wave_height *= 0.8
+
 if st.session_state.is_metric:
     unit_dist, unit_temp, unit_speed, unit_vis, unit_press = "m", "°C", "km/h", "km", "hPa"
     disp_level = round(d['level'] * 0.3048, 2) if d['level'] != "N/A" else "N/A"
@@ -270,8 +366,11 @@ else:
 
 direction_text = get_compass_dir(d['wind_dir'])
 chop_text, chop_class = calculate_chop(d['wind_mph'], d['gusts'])
-level_diff_html = f"<span class='text-red'>↓ {disp_pool_diff}{unit_dist}</span>" if disp_level != "N/A" else ""
-level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
+trend_arrow = "↑" if trend_24h > 0 else "↓"
+trend_color = "#2ecc71" if trend_24h > 0 else "#e74c3c"
+trend_html = f"<span style='color:{trend_color}; font-weight:700;'>{trend_arrow} {abs(trend_24h)} ft (24h)</span>"
+
+level_diff_html = f"{trend_html}<br><span class='text-red'>↓ {disp_pool_diff}{unit_dist}</span>" if disp_level != "N/A" else ""level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
 wind_rotation = (d['wind_dir'] + 180) % 360
 
 # --- UI Rendering (Now Using Pure HTML/CSS Grid) ---
@@ -286,7 +385,8 @@ top_html = f"""
     </div>
     <div class="metric-card">
         <div class="metric-title">Water Temp</div>
-        <div class="metric-value text-blue">{disp_water_temp}{unit_temp}</div>
+        temp_color = "#3498db" if disp_water_temp < 60 else "#f39c12" if disp_water_temp < 80 else "#e74c3c"
+        <div class="metric-value" style="color:{temp_color};">{disp_water_temp}{unit_temp}</div>
         <div class="metric-sub">Surface</div>
     </div>
     <div class="metric-card">
@@ -329,6 +429,7 @@ wind_html = f"""
     <div class="metric-card" style="margin-bottom: 0;">
         <div class="metric-title">Surface Condition</div>
         <div class="metric-value {chop_class}" style="font-size: 1.15rem; margin-top: 5px;">{chop_text}</div>
+        <div class="metric-sub">🌊 Est Waves: {wave_height} ft</div>
         <div class="wind-stats-flex">
             <div>
                 <div class="metric-title" style="font-size: 0.75rem;">Sustained</div>
@@ -344,22 +445,33 @@ wind_html = f"""
 """
 st.markdown(wind_html, unsafe_allow_html=True)
 
-# Row 3: Interactive Map
-st.markdown("### 📍 Dock & Dine GPS")
-restaurants = [
-    {"name": "Pig Tales (Aqualand)", "lat": 34.148, "lon": -83.991},
-    {"name": "Fish Tales (Hideaway)", "lat": 34.175, "lon": -83.961},
-    {"name": "Pelican Pete's", "lat": 34.225, "lon": -84.001},
-    {"name": "Twisted Oar", "lat": 34.188, "lon": -84.008},
-    {"name": "LandShark / Margaritaville", "lat": 34.1852, "lon": -83.9854},
-    {"name": "Holiday Marina (Gas)", "lat": 34.173, "lon": -84.017}
+places = [
+    {"name":"Pig Tales (Aqualand)","lat":34.148,"lon":-83.991,"type":"Restaurant"},
+    {"name":"Fish Tales (Hideaway)","lat":34.175,"lon":-83.961,"type":"Restaurant"},
+    {"name":"Pelican Pete's","lat":34.225,"lon":-84.001,"type":"Restaurant"},
+    {"name":"Twisted Oar","lat":34.188,"lon":-84.008,"type":"Restaurant"},
+    {"name":"LandShark / Margaritaville","lat":34.1852,"lon":-83.9854,"type":"Restaurant"},
+    {"name":"Holiday Marina (Gas)","lat":34.173,"lon":-84.017,"type":"Fuel"}
 ]
 
-m = folium.Map(location=[34.18, -83.98], zoom_start=11, tiles=theme['map_tiles'])
-for res in restaurants:
-    folium.Marker([res['lat'], res['lon']], popup=res['name'], icon=folium.Icon(color='blue', icon='anchor', prefix='fa')).add_to(m)
-st_folium(m, width="100%", height=400)
+category = st.multiselect(
+    "Show on Map",
+    ["Restaurant","Fuel"],
+    default=["Restaurant","Fuel"]
+)
 
+m = folium.Map(location=[34.18, -83.98], zoom_start=11, tiles=theme['map_tiles'])
+
+for p in places:
+    if p["type"] in category:
+        color = "blue" if p["type"]=="Restaurant" else "green"
+        folium.Marker(
+            [p['lat'], p['lon']],
+            popup=f"{p['name']} ({p['type']})",
+            icon=folium.Icon(color=color, icon='anchor', prefix='fa')
+        ).add_to(m)
+
+st_folium(m, width="100%", height=400)
 st.markdown("---")
 with st.expander("✅ Pre-Departure Checklist (Don't sink the boat!)"):
     st.checkbox("Hull drain plug securely installed")
@@ -368,3 +480,10 @@ with st.expander("✅ Pre-Departure Checklist (Don't sink the boat!)"):
     st.checkbox("Life jackets counted & readily accessible")
     st.checkbox("Anchor and dock lines ready")
     st.checkbox("Sufficient fuel for the trip")
+with st.expander("⛽ Fuel Range Estimator"):
+    fuel = st.number_input("Fuel Onboard (Gallons)", min_value=0.0, step=1.0)
+    mpg = st.number_input("Boat MPG", min_value=0.1, step=0.1)
+
+    if fuel and mpg:
+        safe_range = fuel * mpg * 0.7
+        st.success(f"Safe Range (30% reserve): {round(safe_range,1)} miles")
