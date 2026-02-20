@@ -6,23 +6,19 @@ import requests
 import re
 from datetime import datetime
 
-# Page config must be the first Streamlit command
 st.set_page_config(page_title="Lanier Navigator", layout="centered", page_icon="⚓")
 
 # --- Theme Management ---
 if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = True # Default to dark mode
+    st.session_state.dark_mode = True 
 
-# Top Bar with Title and Toggle
 col_title, col_toggle = st.columns([3, 1])
 with col_title:
-    # We use a custom HTML title so we can change its color with the theme
     st.markdown('<h1 class="main-title">⚓ Lanier Navigator</h1>', unsafe_allow_html=True)
 with col_toggle:
-    st.write("") # Spacing to align with title
+    st.write("") 
     st.session_state.dark_mode = st.toggle("🌙 Dark Mode", value=st.session_state.dark_mode)
 
-# Define Theme Colors
 theme = {
     "bg": "#0e1117" if st.session_state.dark_mode else "#f0f2f6",
     "card_bg": "#1e2130" if st.session_state.dark_mode else "#ffffff",
@@ -32,17 +28,18 @@ theme = {
     "map_tiles": "CartoDB dark_matter" if st.session_state.dark_mode else "CartoDB positron"
 }
 
-# Inject Dynamic CSS
 st.markdown(f"""
     <style>
     /* Global App Background */
     .stApp {{ background-color: {theme['bg']} !important; }}
     
-    /* Main Title */
-    .main-title {{ color: {theme['text']}; font-weight: 800; margin-bottom: 20px; }}
+    /* FIX: Force Streamlit Labels and Text to use Theme Color */
+    .main-title, h3, div[data-testid="stWidgetLabel"] p, .st-toggle p, p {{ 
+        color: {theme['text']} !important; 
+    }}
     
-    /* Headings */
-    h3 {{ color: {theme['text']} !important; }}
+    /* Main Title */
+    .main-title {{ font-weight: 800; margin-bottom: 20px; }}
     
     /* Beautiful Metric Cards */
     .metric-card {{
@@ -73,18 +70,20 @@ st.markdown(f"""
     .chop-warn {{ color: #f1c40f; font-weight: 800; }}
     .chop-danger {{ color: #e74c3c; font-weight: 800; }}
     
-    /* Small Info Pills (UV & Sunset) */
+    /* Small Info Pills */
     .info-pill {{
         background: {theme['card_bg']};
         border: 1px solid {theme['border']};
         border-radius: 30px;
-        padding: 10px 20px;
+        padding: 8px 15px;
         color: {theme['text']};
+        font-size: 0.9rem;
         font-weight: 600;
         text-align: center;
         display: inline-block;
         width: 100%;
         margin-bottom: 10px;
+        white-space: nowrap;
     }}
     
     /* Wind Animation */
@@ -99,7 +98,6 @@ st.markdown(f"""
         transition: transform 0.5s ease;
     }}
     
-    /* Wind Container */
     .wind-container {{
         background: linear-gradient(135deg, #2c3e50, #3498db);
         border-radius: 20px;
@@ -117,10 +115,10 @@ st.markdown(f"""
 def fetch_data():
     data = {
         "level": "N/A", "air_temp": "N/A", "water_temp": "N/A",
-        "wind_mph": 0, "wind_dir": 0, "gusts": 0, "uv": 0, "sunset": "N/A"
+        "wind_mph": 0, "wind_dir": 0, "gusts": 0, "uv": 0, 
+        "sunrise": "N/A", "sunset": "N/A", "rain_chance": 0, "visibility": "N/A"
     }
     
-    # 1. Lake Level (USGS)
     try:
         usgs_url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400&parameterCd=00062"
         usgs_res = requests.get(usgs_url, timeout=5).json()
@@ -129,30 +127,36 @@ def fetch_data():
     except Exception:
         pass
 
-    # 2. Weather, Wind, UV, & Sunset (Open-Meteo)
     try:
-        meteo_url = "https://api.open-meteo.com/v1/forecast?latitude=34.18&longitude=-83.98&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index&daily=sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York"
+        # Added visibility, sunrise, sunset, and precipitation probability
+        meteo_url = "https://api.open-meteo.com/v1/forecast?latitude=34.18&longitude=-83.98&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,visibility&daily=sunrise,sunset,precipitation_probability_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York"
         meteo_res = requests.get(meteo_url, timeout=5).json()
         
         current = meteo_res['current']
+        daily = meteo_res['daily']
+        
         data["air_temp"] = round(current['temperature_2m'], 1)
         data["wind_mph"] = round(current['wind_speed_10m'], 1)
         data["wind_dir"] = current['wind_direction_10m']
         data["gusts"] = round(current['wind_gusts_10m'], 1)
         data["uv"] = round(current['uv_index'], 1)
         
-        # Parse Sunset Time
-        sunset_iso = meteo_res['daily']['sunset'][0]
-        data["sunset"] = datetime.strptime(sunset_iso, "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
+        # Visibility comes in meters, convert to miles
+        data["visibility"] = round(current['visibility'] / 1609.34, 1)
+        data["rain_chance"] = daily['precipitation_probability_max'][0]
+        
+        # Parse Times
+        data["sunrise"] = datetime.strptime(daily['sunrise'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
+        data["sunset"] = datetime.strptime(daily['sunset'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
     except Exception:
         pass
 
-    # 3. Water Temp (Web Scrape)
     try:
+        # Broadened regex slightly to help catch water temp updates
         lm_url = "https://lakemonster.com/lake/GA/Lake-Lanier-234"
         headers = {'User-Agent': 'Mozilla/5.0'}
         lm_res = requests.get(lm_url, headers=headers, timeout=5)
-        match = re.search(r'(\d+)°F\s*water', lm_res.text, re.IGNORECASE)
+        match = re.search(r'(\d{2,3})(?:°|&deg;)F?\s*(?:water|temp)', lm_res.text, re.IGNORECASE)
         if match:
             data["water_temp"] = int(match.group(1))
     except Exception:
@@ -176,7 +180,6 @@ def calculate_chop(wind, gusts):
     else:
         return "Rough / Whitecaps", "chop-danger"
 
-# --- Fetch & Prepare Data ---
 d = fetch_data()
 direction_text = get_compass_dir(d['wind_dir'])
 chop_text, chop_class = calculate_chop(d['wind_mph'], d['gusts'])
@@ -197,12 +200,12 @@ with c2:
 with c3:
     st.markdown(f'<div class="metric-card"><div class="metric-title">Air Temp</div><div class="metric-value">{d["air_temp"]}°</div><div class="metric-sub">Flowery Branch</div></div>', unsafe_allow_html=True)
 
-# Row 1.5: Quick Boating Info
-qc1, qc2 = st.columns(2)
-with qc1:
-    st.markdown(f'<div class="info-pill">☀️ UV Index: <strong>{d["uv"]}</strong></div>', unsafe_allow_html=True)
-with qc2:
-    st.markdown(f'<div class="info-pill">🌅 Sunset: <strong>{d["sunset"]}</strong></div>', unsafe_allow_html=True)
+# Row 1.5: Quick Boating Info (4 Pills)
+qc1, qc2, qc3, qc4 = st.columns(4)
+with qc1: st.markdown(f'<div class="info-pill">🌅 Sun: <strong>{d["sunrise"]}</strong></div>', unsafe_allow_html=True)
+with qc2: st.markdown(f'<div class="info-pill">🌙 Set: <strong>{d["sunset"]}</strong></div>', unsafe_allow_html=True)
+with qc3: st.markdown(f'<div class="info-pill">🌧️ Rain: <strong>{d["rain_chance"]}%</strong></div>', unsafe_allow_html=True)
+with qc4: st.markdown(f'<div class="info-pill">🌫️ Vis: <strong>{d["visibility"]} mi</strong></div>', unsafe_allow_html=True)
 
 # Row 2: Animated Wind & Surface Conditions
 st.markdown("### 💨 Live Wind & Surface Simulation")
