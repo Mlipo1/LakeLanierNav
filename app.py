@@ -375,9 +375,10 @@ places = [
 
 places_json = json.dumps(places)
 map_tile_url = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" if st.session_state.dark_mode else "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-
-# THIS FLAG CAUSED THE BUG - Definitively injected here before the f-string evaluates
 js_metric_flag = "true" if st.session_state.is_metric else "false"
+
+# Use rgba for the dashboard background to give it that Apple Maps blurred glass look
+dash_bg = "rgba(30, 33, 48, 0.95)" if st.session_state.dark_mode else "rgba(255, 255, 255, 0.95)"
 
 nav_html = f"""
 <!DOCTYPE html>
@@ -388,98 +389,137 @@ nav_html = f"""
     <style>
         body {{ margin: 0; padding: 0; font-family: -apple-system, sans-serif; background: transparent; }}
         
-        #map-container {{ display: flex; flex-direction: column; position: relative; height: 550px; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid {theme['border']}; }}
-        #map {{ flex: 1; width: 100%; z-index: 1; }}
+        #map-container {{ position: relative; height: 600px; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid {theme['border']}; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }}
+        #map {{ height: 100%; width: 100%; z-index: 1; }}
         
+        /* Floating Apple-Maps Style Dashboard Overlay */
         #nav-dashboard {{
-            display: none; width: 100%; z-index: 1001; background: {theme['card_bg']}; color: {theme['text']}; padding: 15px; border-bottom: 3px solid #3498db; box-sizing: border-box;
+            position: absolute; bottom: 0; left: 0; width: 100%; z-index: 1001;
+            background: {dash_bg}; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+            color: {theme['text']}; padding: 20px 15px; border-top: 3px solid #3498db;
+            box-sizing: border-box; border-radius: 25px 25px 0 0;
+            transform: translateY(110%); transition: transform 0.4s cubic-bezier(0.1, 0.8, 0.2, 1);
+            box-shadow: 0 -5px 20px rgba(0,0,0,0.3);
         }}
+        #nav-dashboard.active {{ transform: translateY(0); }}
         
         #search-container {{ position: absolute; top: 10px; left: 10px; z-index: 1000; width: 65%; max-width: 320px; }}
         #poi-search {{
-            width: 100%; padding: 12px 15px; border-radius: 25px; border: 2px solid #3498db; background: {theme['card_bg']}; color: {theme['text']}; font-weight: bold; font-size: 1rem; outline: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3); box-sizing: border-box;
+            width: 100%; padding: 12px 15px; border-radius: 25px; border: 2px solid #3498db;
+            background: {theme['card_bg']}; color: {theme['text']}; font-weight: bold; font-size: 1rem;
+            outline: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3); box-sizing: border-box;
         }}
         #search-results {{
-            display: none; background: {theme['card_bg']}; margin-top: 5px; border-radius: 12px; border: 1px solid {theme['border']}; box-shadow: 0 4px 15px rgba(0,0,0,0.4); overflow: hidden; max-height: 250px; overflow-y: auto;
+            display: none; background: {theme['card_bg']}; margin-top: 5px; border-radius: 12px;
+            border: 1px solid {theme['border']}; box-shadow: 0 4px 15px rgba(0,0,0,0.4); overflow: hidden;
+            max-height: 250px; overflow-y: auto;
         }}
         .search-item {{ padding: 12px 15px; cursor: pointer; border-bottom: 1px solid {theme['border']}; color: {theme['text']}; }}
         .search-item:last-child {{ border-bottom: none; }}
         .search-item:hover {{ background: rgba(52, 152, 219, 0.15); }}
 
         #filter-panel {{
-            position: absolute; top: 10px; right: 10px; z-index: 1000; background: {theme['card_bg']}; color: {theme['text']}; padding: 10px 15px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); border: 1px solid {theme['border']}; font-size: 0.9rem; font-weight: bold;
+            position: absolute; top: 10px; right: 10px; z-index: 1000;
+            background: {dash_bg}; backdrop-filter: blur(5px); color: {theme['text']};
+            padding: 10px 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            border: 1px solid {theme['border']}; font-size: 0.9rem; font-weight: bold;
         }}
         .filter-cb {{ margin-right: 8px; transform: scale(1.2); cursor: pointer; }}
         .filter-row {{ margin-bottom: 8px; display: flex; align-items: center; cursor: pointer; }}
         
         .stats-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; margin-top: 15px; }}
-        .stat-val {{ font-size: 1.4rem; font-weight: 900; }}
-        .stat-lbl {{ font-size: 0.7rem; opacity: 0.8; font-weight: bold; text-transform: uppercase; }}
-        .eta-box {{ margin-top: 15px; background: rgba(52, 152, 219, 0.1); padding: 8px; border-radius: 8px; font-weight: bold; text-align: center; color: #3498db; }}
+        .stat-val {{ font-size: 1.5rem; font-weight: 900; }}
+        .stat-lbl {{ font-size: 0.75rem; opacity: 0.8; font-weight: bold; text-transform: uppercase; }}
+        .eta-box {{ margin-top: 15px; background: rgba(52, 152, 219, 0.15); padding: 10px; border-radius: 8px; font-weight: bold; text-align: center; color: #3498db; font-size: 1.1rem; }}
         
-        .map-marker {{ width: 34px; height: 34px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 3px 8px rgba(0,0,0,0.4); font-size: 18px; border: 2px solid white; }}
+        .map-marker {{
+            width: 36px; height: 36px; background: white; border-radius: 50%; display: flex;
+            align-items: center; justify-content: center; box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+            font-size: 20px; border: 2px solid white; transition: transform 0.2s;
+        }}
+        .map-marker:hover {{ transform: scale(1.2); }}
         .marker-dining {{ border-color: #e74c3c; background: #ffeaa7; }}
         .marker-fuel {{ border-color: #f39c12; background: #ffeaa7; }}
         .marker-marina {{ border-color: #3498db; background: #81ecec; }}
         
         .poi-label {{
-            background: transparent !important; border: none !important; box-shadow: none !important; color: {theme['text']} !important; font-weight: 900 !important; font-size: 0.9rem !important; text-shadow: 2px 2px 0 {theme['bg']}, -2px -2px 0 {theme['bg']}, 2px -2px 0 {theme['bg']}, -2px 2px 0 {theme['bg']} !important; opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s ease !important;
+            background: transparent !important; border: none !important; box-shadow: none !important; 
+            color: {theme['text']} !important; font-weight: 900 !important; font-size: 0.95rem !important;
+            text-shadow: 2px 2px 0 {theme['bg']}, -2px -2px 0 {theme['bg']}, 2px -2px 0 {theme['bg']}, -2px 2px 0 {theme['bg']} !important;
+            opacity: 0 !important; pointer-events: none !important; transition: opacity 0.3s ease !important;
         }}
         #map.show-labels .poi-label {{ opacity: 1 !important; }}
 
         .nav-arrow-marker {{ display: flex; align-items: center; justify-content: center; transition: transform 0.1s linear; transform-origin: center center; }}
-        .start-btn {{ background: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; width: 100%; }}
-        .stop-btn {{ background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.8rem; float: right; }}
+        .start-btn {{ background: #3498db; color: white; border: none; padding: 12px 15px; border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer; margin-top: 12px; width: 100%; box-shadow: 0 2px 5px rgba(52,152,219,0.4); }}
+        .stop-btn {{ background: #e74c3c; color: white; border: none; padding: 8px 15px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 0.9rem; float: right; box-shadow: 0 2px 5px rgba(231,76,60,0.4); }}
         
-        #recenter-btn {{ display: none; position: absolute; bottom: 20px; right: 20px; z-index: 1000; background: {theme['card_bg']}; color: #3498db; border: 2px solid #3498db; width: 48px; height: 48px; border-radius: 50%; padding: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer; align-items: center; justify-content: center; }}
-        .steer-compass {{ margin: 10px auto 0 auto; width: 50px; height: 50px; border-radius: 50%; background: {theme['bg']}; border: 2px solid #3498db; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.2); }}
+        #recenter-btn {{
+            display: none; position: absolute; bottom: 20px; right: 20px; z-index: 1000;
+            background: {theme['card_bg']}; color: #3498db; border: 2px solid #3498db;
+            width: 50px; height: 50px; border-radius: 50%; padding: 0;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer;
+            align-items: center; justify-content: center; transition: background 0.2s;
+        }}
+        #recenter-btn:active {{ background: #3498db; color: white; stroke: white; }}
+        
+        .steer-compass {{
+            margin: 10px auto 0 auto; width: 60px; height: 60px; border-radius: 50%;
+            background: {theme['bg']}; border: 3px solid #3498db; display: flex;
+            align-items: center; justify-content: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+        }}
         
         @media (max-width: 600px) {{
             #search-container {{ width: 90%; max-width: none; left: 5%; }}
-            #filter-panel {{ top: 70px; right: 5%; }}
+            #filter-panel {{ top: 75px; right: 5%; display: flex; gap: 10px; padding: 8px 10px; }}
+            .filter-row {{ margin-bottom: 0; font-size: 0.8rem; }}
         }}
     </style>
 </head>
 <body>
     <div id="map-container">
-        <div id="nav-dashboard">
-            <div style="font-size: 1.1rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center;">
-                <span id="nav-title" style="color:#3498db;">Navigating...</span>
-                <button class="stop-btn" onclick="stopNav()">🛑 Stop</button>
-            </div>
-            <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
-                <div class="steer-compass">
-                    <svg id="steer-arrow" style="transition: transform 0.1s ease-out;" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="12" y1="19" x2="12" y2="5"></line>
-                        <polyline points="5 12 12 5 19 12"></polyline>
-                    </svg>
-                </div>
-                <div style="font-size: 0.8rem; opacity: 0.8; font-weight: bold; width: 80px;">TURN TO <br>TARGET</div>
-            </div>
-            <div class="stats-grid">
-                <div><div class="stat-lbl">Speed</div><div class="stat-val" id="gps-speed">--</div><div style="font-size:0.6rem" id="lbl-speed">mph</div></div>
-                <div><div class="stat-lbl">Distance</div><div class="stat-val" id="gps-dist" style="color:#e74c3c">--</div><div style="font-size:0.6rem" id="lbl-dist">miles</div></div>
-                <div><div class="stat-lbl">Heading</div><div class="stat-val" id="gps-heading">--</div><div style="font-size:0.6rem">deg</div></div>
-            </div>
-            <div class="eta-box">⏱️ ETA: <span id="gps-eta">Waiting for GPS lock...</span></div>
-        </div>
-
+        
         <div id="search-container">
-            <input type="text" id="poi-search" placeholder="🔍 Search lake destinations..." oninput="filterSearch()">
+            <input type="text" id="poi-search" placeholder="🔍 Search destinations..." oninput="filterSearch()">
             <div id="search-results"></div>
         </div>
 
         <div id="filter-panel">
-            <label class="filter-row"><input type="checkbox" class="filter-cb" value="Dining" checked onchange="renderMarkers()"> 🍽️ Dining</label>
-            <label class="filter-row"><input type="checkbox" class="filter-cb" value="Fuel" checked onchange="renderMarkers()"> ⛽ Fuel</label>
-            <label class="filter-row" style="margin-bottom:0;"><input type="checkbox" class="filter-cb" value="Marina" checked onchange="renderMarkers()"> ⚓ Marinas</label>
+            <label class="filter-row"><input type="checkbox" class="filter-cb" value="Dining" checked onchange="renderMarkers()"> 🍔</label>
+            <label class="filter-row"><input type="checkbox" class="filter-cb" value="Fuel" checked onchange="renderMarkers()"> ⛽</label>
+            <label class="filter-row" style="margin-bottom:0;"><input type="checkbox" class="filter-cb" value="Marina" checked onchange="renderMarkers()"> ⚓</label>
         </div>
 
         <button id="recenter-btn" onclick="recenterMap()">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"></circle><line x1="22" y1="12" x2="18" y2="12"></line><line x1="6" y1="12" x2="2" y2="12"></line><line x1="12" y1="6" x2="12" y2="2"></line><line x1="12" y1="22" x2="12" y2="18"></line>
             </svg>
         </button>
+
+        <div id="nav-dashboard">
+            <div style="font-size: 1.2rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <span id="nav-title" style="color:#3498db;">Navigating...</span>
+                <button class="stop-btn" onclick="stopNav()">🛑 Stop</button>
+            </div>
+            
+            <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
+                <div class="steer-compass">
+                    <svg id="steer-arrow" style="transition: transform 0.1s ease-out;" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="19" x2="12" y2="5"></line>
+                        <polyline points="5 12 12 5 19 12"></polyline>
+                    </svg>
+                </div>
+                <div style="font-size: 0.85rem; opacity: 0.9; font-weight: 800; width: 90px; line-height: 1.2;">STEER TO <br>TARGET</div>
+            </div>
+
+            <div class="stats-grid">
+                <div><div class="stat-lbl">Speed</div><div class="stat-val" id="gps-speed">--</div><div style="font-size:0.7rem" id="lbl-speed">mph</div></div>
+                <div><div class="stat-lbl">Distance</div><div class="stat-val" id="gps-dist" style="color:#e74c3c">--</div><div style="font-size:0.7rem" id="lbl-dist">miles</div></div>
+                <div><div class="stat-lbl">Heading</div><div class="stat-val" id="gps-heading">--</div><div style="font-size:0.7rem">deg</div></div>
+            </div>
+            <div class="eta-box">⏱️ ETA: <span id="gps-eta">Waiting for GPS...</span></div>
+        </div>
+        
         <div id="map"></div>
     </div>
 
@@ -491,16 +531,15 @@ nav_html = f"""
     var places = {places_json};
     var markersLayer = L.layerGroup().addTo(map);
     
+    // NATIVE HTML ICONS (No broken images!)
     var iconMap = {{
-        "Dining": L.divIcon({{className: '', html: '<div class="map-marker marker-dining">🍔</div>', iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17]}}),
-        "Fuel": L.divIcon({{className: '', html: '<div class="map-marker marker-fuel">⛽</div>', iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17]}}),
-        "Marina": L.divIcon({{className: '', html: '<div class="map-marker marker-marina">⚓</div>', iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17]}})
+        "Dining": L.divIcon({{className: '', html: '<div class="map-marker marker-dining">🍔</div>', iconSize: [36,36], iconAnchor: [18,18], popupAnchor: [0,-18]}}),
+        "Fuel": L.divIcon({{className: '', html: '<div class="map-marker marker-fuel">⛽</div>', iconSize: [36,36], iconAnchor: [18,18], popupAnchor: [0,-18]}}),
+        "Marina": L.divIcon({{className: '', html: '<div class="map-marker marker-marina">⚓</div>', iconSize: [36,36], iconAnchor: [18,18], popupAnchor: [0,-18]}})
     }};
 
-    var targetIcon = L.icon({{
-        iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
+    var targetIcon = L.divIcon({{
+        className: '', html: '<div style="font-size: 32px; text-shadow: 0 4px 8px rgba(0,0,0,0.5);">📍</div>', iconSize: [32,32], iconAnchor: [16,32], popupAnchor: [0,-32]
     }});
 
     window.renderMarkers = function() {{
@@ -511,14 +550,16 @@ nav_html = f"""
         places.forEach((p, index) => {{
             if (activeFilters.includes(p.type)) {{
                 var marker = L.marker([p.lat, p.lon], {{icon: iconMap[p.type] || iconMap["Dining"]}}).addTo(markersLayer);
-                var tooltip = L.tooltip({{permanent: true, direction: 'bottom', className: 'poi-label', offset: [0, 5]}}).setContent(p.name);
+                
+                var tooltip = L.tooltip({{permanent: true, direction: 'bottom', className: 'poi-label', offset: [0, 8]}}).setContent(p.name);
                 marker.bindTooltip(tooltip);
+
                 var popupHTML = `
-                    <div style="text-align: center; min-width: 140px; font-family: sans-serif;">
-                        <b style="font-size: 1.1rem; color: #2c3e50;">${{p.name}}</b><br/>
-                        <span style="font-size: 0.8rem; color: #7f8c8d;">${{p.type}}</span><br/>
-                        <div style="font-size: 0.8rem; margin: 8px 0; color: #333;">🕒 ${{p.hours}}</div>
-                        <a href="${{p.web}}" target="_blank" style="font-size: 0.85rem; color: #3498db; text-decoration: none; font-weight: bold;">🌐 Visit Website</a><br/>
+                    <div style="text-align: center; min-width: 150px; font-family: sans-serif;">
+                        <b style="font-size: 1.2rem; color: #2c3e50; display:block; margin-bottom: 2px;">${{p.name}}</b>
+                        <span style="font-size: 0.8rem; color: #7f8c8d; text-transform: uppercase; font-weight: bold;">${{p.type}}</span>
+                        <div style="font-size: 0.85rem; margin: 10px 0; color: #333; background: #f0f2f6; padding: 5px; border-radius: 5px;">🕒 ${{p.hours}}</div>
+                        <a href="${{p.web}}" target="_blank" style="font-size: 0.9rem; color: #3498db; text-decoration: none; font-weight: bold;">🌐 Website</a><br/>
                         <button class="start-btn" onclick="startNav(${{index}})">Start Navigating</button>
                     </div>
                 `;
@@ -539,8 +580,11 @@ nav_html = f"""
         let query = document.getElementById('poi-search').value.toLowerCase();
         let resultsDiv = document.getElementById('search-results');
         resultsDiv.innerHTML = "";
+        
         if (query.length === 0) {{ resultsDiv.style.display = "none"; return; }}
+        
         let matches = places.filter(p => p.name.toLowerCase().includes(query) || p.type.toLowerCase().includes(query));
+        
         if (matches.length > 0) {{
             resultsDiv.style.display = "block";
             matches.forEach(m => {{
@@ -580,7 +624,11 @@ nav_html = f"""
     window.recenterMap = function() {{
         mapLocked = true;
         document.getElementById('recenter-btn').style.display = 'none';
-        if (lastLat != null && lastLon != null) {{ map.setView([lastLat, lastLon], 15, {{animate: true}}); }}
+        if (lastLat != null && lastLon != null) {{ 
+            // Pan so the boat is slightly above the dashboard overlay
+            map.setView([lastLat, lastLon], 15, {{animate: true}}); 
+            map.panBy([0, 100], {{animate: true}});
+        }}
     }};
 
     function handleOrientation(event) {{
@@ -626,15 +674,14 @@ nav_html = f"""
         isNavigating = true;
         mapLocked = true;
         
-        document.getElementById('nav-dashboard').style.display = 'block';
+        // Slide dashboard up smoothly
+        document.getElementById('nav-dashboard').classList.add('active');
         document.getElementById('search-container').style.display = 'none';
         document.getElementById('filter-panel').style.display = 'none';
         document.getElementById('recenter-btn').style.display = 'none';
         document.getElementById('nav-title').innerText = "To: " + currentTarget.name;
         document.getElementById('lbl-speed').innerText = isMetric ? "km/h" : "mph";
         document.getElementById('lbl-dist').innerText = isMetric ? "km" : "miles";
-        
-        setTimeout(function() {{ map.invalidateSize(); }}, 50);
 
         if(targetMarker) map.removeLayer(targetMarker);
         targetMarker = L.marker([currentTarget.lat, currentTarget.lon], {{icon: targetIcon}}).addTo(map);
@@ -661,12 +708,11 @@ nav_html = f"""
         window.removeEventListener('deviceorientation', handleOrientation, true);
         window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
 
-        document.getElementById('nav-dashboard').style.display = 'none';
+        // Slide dashboard down smoothly
+        document.getElementById('nav-dashboard').classList.remove('active');
         document.getElementById('search-container').style.display = 'block';
-        document.getElementById('filter-panel').style.display = 'block';
+        document.getElementById('filter-panel').style.display = 'flex';
         document.getElementById('recenter-btn').style.display = 'none';
-        
-        setTimeout(function() {{ map.invalidateSize(); }}, 50);
         
         if(routeLine) map.removeLayer(routeLine);
         if(targetMarker) map.removeLayer(targetMarker);
@@ -686,20 +732,23 @@ nav_html = f"""
         if (!userMarker) {{
             let arrowHtml = `
             <div id="map-nav-arrow" class="nav-arrow-marker" style="transform: rotate(${{currentHeading}}deg);">
-                <svg viewBox="0 0 24 24" width="40" height="40" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.5));">
+                <svg viewBox="0 0 24 24" width="45" height="45" style="filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.6));">
                     <path d="M12 2L22 22L12 18L2 22L12 2Z" fill="#3498db" stroke="#ffffff" stroke-width="2"/>
                 </svg>
             </div>`;
-            var icon = L.divIcon({{className: '', html: arrowHtml, iconSize: [40, 40], iconAnchor: [20, 20]}});
+            var icon = L.divIcon({{className: '', html: arrowHtml, iconSize: [45, 45], iconAnchor: [22, 22]}});
             userMarker = L.marker(userLatLng, {{icon: icon, zIndexOffset: 1000}}).addTo(map);
         }} else {{
             userMarker.setLatLng(userLatLng);
         }}
 
-        if (mapLocked) {{ map.setView(userLatLng, 15, {{animate: true}}); }}
+        if (mapLocked) {{ 
+            map.setView(userLatLng, 15, {{animate: true}}); 
+            map.panBy([0, 100], {{animate: false}}); // Keep boat visible above dashboard
+        }}
 
         if (!routeLine) {{
-            routeLine = L.polyline([userLatLng, targetLatLng], {{color: '#3498db', weight: 4, dashArray: '8, 8'}}).addTo(map);
+            routeLine = L.polyline([userLatLng, targetLatLng], {{color: '#3498db', weight: 5, dashArray: '10, 10'}}).addTo(map);
         }} else {{
             routeLine.setLatLngs([userLatLng, targetLatLng]);
         }}
@@ -734,7 +783,8 @@ nav_html = f"""
 </body>
 </html>
 """
-st.components.v1.html(nav_html, height=570)
+# Make the iframe slightly taller to accommodate the new sliding UI
+st.components.v1.html(nav_html, height=620)
 
 # --- Utilities ---
 st.markdown("---")
