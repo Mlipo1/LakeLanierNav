@@ -370,12 +370,14 @@ trend_arrow = "↑" if trend_24h > 0 else "↓"
 trend_color = "#2ecc71" if trend_24h > 0 else "#e74c3c"
 trend_html = f"<span style='color:{trend_color}; font-weight:700;'>{trend_arrow} {abs(trend_24h)} ft (24h)</span>"
 
-level_diff_html = f"{trend_html}<br><span class='text-red'>↓ {disp_pool_diff}{unit_dist}</span>" if disp_level != "N/A" else ""level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
+level_diff_html = f"{trend_html}<br><span class='text-red'>↓ {disp_pool_diff}{unit_dist}</span>" if disp_level != "N/A" else ""
+level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
 wind_rotation = (d['wind_dir'] + 180) % 360
 
 # --- UI Rendering (Now Using Pure HTML/CSS Grid) ---
 
 # 1. Top Metrics (Lake Level, Water Temp, Air Temp)
+temp_color = "#3498db" if disp_water_temp < 60 else "#f39c12" if disp_water_temp < 80 else "#e74c3c"
 top_html = f"""
 <div class="metrics-grid">
     <div class="metric-card">
@@ -385,7 +387,7 @@ top_html = f"""
     </div>
     <div class="metric-card">
         <div class="metric-title">Water Temp</div>
-        temp_color = "#3498db" if disp_water_temp < 60 else "#f39c12" if disp_water_temp < 80 else "#e74c3c"
+        
         <div class="metric-value" style="color:{temp_color};">{disp_water_temp}{unit_temp}</div>
         <div class="metric-sub">Surface</div>
     </div>
