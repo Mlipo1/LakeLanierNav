@@ -98,11 +98,11 @@ st.markdown(f"""
     .wind-stats-box {{ background: rgba(0,0,0,0.25); padding: 15px 25px; border-radius: 15px; min-width: 50%; text-align: center; }}
     
     @keyframes wind-pulse {{
-        0% {{ transform: scale(1) translateY(0px); opacity: 0.8; }}
-        50% {{ transform: scale(1.1) translateY(-5px); opacity: 1; filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.8)); }}
-        100% {{ transform: scale(1) translateY(0px); opacity: 0.8; }}
+        0% {{ transform: translateY(0px); opacity: 0.8; }}
+        50% {{ transform: translateY(-8px); opacity: 1; filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.8)); }}
+        100% {{ transform: translateY(0px); opacity: 0.8; }}
     }}
-    .animated-wind {{ display: inline-block; animation: wind-pulse 2s infinite ease-in-out; transition: transform 0.5s ease; }}
+    .animated-wind {{ display: inline-block; animation: wind-pulse 2s infinite ease-in-out; }}
 
     /* Wave Animation CSS */
     .sim-wave-box {{
@@ -345,7 +345,7 @@ with sim_col:
     """
     st.markdown(wave_sim_html, unsafe_allow_html=True)
 
-# --- Consolidated Wind Section (FIXED NO-INDENT STRING) ---
+# --- Consolidated Wind Section (FIXED NESTED ANIMATION) ---
 st.markdown("### 💨 Live Wind Details")
 
 wind_html = f"""
@@ -353,11 +353,13 @@ wind_html = f"""
 <div class="wind-merged">
 <div style="text-align: center;">
 <div style="font-size: 0.8rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; opacity: 0.9;">WIND DIR</div>
-<div style="transform: rotate({wind_rotation}deg);" class="animated-wind">
+<div style="transform: rotate({wind_rotation}deg); display: inline-block;">
+<div class="animated-wind">
 <svg width="45" height="45" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 <line x1="12" y1="19" x2="12" y2="5"></line>
 <polyline points="5 12 12 5 19 12"></polyline>
 </svg>
+</div>
 </div>
 <div style="font-size: 1.5rem; font-weight: 900; margin-top: 8px;">{direction_text}</div>
 <div style="font-size: 0.9rem; opacity: 0.8;">{d['wind_dir']}°</div>
@@ -428,11 +430,8 @@ with st.expander("🌉 Bridge Clearance Calculator"):
     boat_height = st.number_input("Boat Height Above Waterline (ft)", min_value=1.0, step=0.5, value=12.0)
     
     if d['level'] != "N/A":
-        # Known clearances at full pool (1071 ft)
         browns_clearance_full = 53.0
         boling_clearance_full = 54.0
-        
-        # Calculate current clearance (Full Pool + Difference in current water level)
         current_browns = browns_clearance_full + (FULL_POOL_FT - d['level'])
         current_boling = boling_clearance_full + (FULL_POOL_FT - d['level'])
         
