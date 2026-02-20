@@ -384,6 +384,7 @@ st.markdown(wind_html, unsafe_allow_html=True)
 # ---------------------------------------------------------
 st.markdown("### 📍 Dock & Dine Navigation")
 
+# Expanded POIs with distinct categories
 places = [
     {"name":"Pig Tales (Aqualand)","lat":34.148,"lon":-83.991,"type":"Dining"},
     {"name":"Fish Tales (Hideaway)","lat":34.175,"lon":-83.961,"type":"Dining"},
@@ -396,6 +397,7 @@ places = [
     {"name":"Port Royale Marina","lat":34.228,"lon":-84.002,"type":"Marina"}
 ]
 
+# Pass data securely to JS
 places_json = json.dumps(places)
 map_tile_url = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" if st.session_state.dark_mode else "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
 js_metric_flag = "true" if st.session_state.is_metric else "false"
@@ -409,23 +411,30 @@ nav_html = f"""
     <style>
         body {{ margin: 0; padding: 0; font-family: -apple-system, sans-serif; background: transparent; }}
         
-        /* NEW: Flexbox layout so map physically shrinks when dashboard opens */
-        #map-container {{ 
-            display: flex; flex-direction: column; position: relative; 
-            height: 550px; width: 100%; border-radius: 12px; overflow: hidden; 
-            border: 1px solid {theme['border']}; 
+        #map-container {{ position: relative; height: 550px; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid {theme['border']}; }}
+        #map {{ height: 100%; width: 100%; z-index: 1; }}
+        
+        /* Search Bar Setup */
+        #search-container {{
+            position: absolute; top: 10px; left: 10px; z-index: 1000; width: 65%; max-width: 320px;
         }}
-        
-        /* Map takes up all remaining space */
-        #map {{ flex: 1; width: 100%; z-index: 1; }}
-        
-        /* Dashboard pushes map down */
-        #nav-dashboard {{
-            display: none; width: 100%; z-index: 1001;
-            background: {theme['card_bg']}; color: {theme['text']}; padding: 15px;
-            border-bottom: 3px solid #3498db; box-sizing: border-box;
+        #poi-search {{
+            width: 100%; padding: 12px 15px; border-radius: 25px; border: 2px solid #3498db;
+            background: {theme['card_bg']}; color: {theme['text']}; font-weight: bold; font-size: 1rem;
+            outline: none; box-shadow: 0 4px 10px rgba(0,0,0,0.3); box-sizing: border-box;
         }}
-        
+        #search-results {{
+            display: none; background: {theme['card_bg']}; margin-top: 5px; border-radius: 12px;
+            border: 1px solid {theme['border']}; box-shadow: 0 4px 15px rgba(0,0,0,0.4); overflow: hidden;
+            max-height: 250px; overflow-y: auto;
+        }}
+        .search-item {{
+            padding: 12px 15px; cursor: pointer; border-bottom: 1px solid {theme['border']}; color: {theme['text']};
+        }}
+        .search-item:last-child {{ border-bottom: none; }}
+        .search-item:hover {{ background: rgba(52, 152, 219, 0.15); }}
+
+        /* Floating Map Filters */
         #filter-panel {{
             position: absolute; top: 10px; right: 10px; z-index: 1000;
             background: {theme['card_bg']}; color: {theme['text']};
@@ -435,13 +444,12 @@ nav_html = f"""
         .filter-cb {{ margin-right: 8px; transform: scale(1.2); cursor: pointer; }}
         .filter-row {{ margin-bottom: 8px; display: flex; align-items: center; cursor: pointer; }}
 
-        /* New Floating Crosshair Recenter Button */
-        #recenter-btn {{
-            display: none; position: absolute; bottom: 20px; right: 20px; z-index: 1000;
-            background: {theme['card_bg']}; color: #3498db; border: 2px solid #3498db;
-            width: 48px; height: 48px; border-radius: 50%; padding: 0;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer;
-            align-items: center; justify-content: center;
+        /* Navigation Dashboard Overlay */
+        #nav-dashboard {{
+            display: none; position: absolute; top: 0; left: 0; width: 100%; z-index: 1001;
+            background: {theme['card_bg']}; color: {theme['text']}; padding: 15px;
+            border-bottom: 3px solid #3498db; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            box-sizing: border-box; border-radius: 12px 12px 0 0;
         }}
         
         .stats-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; margin-top: 15px; }}
@@ -449,6 +457,7 @@ nav_html = f"""
         .stat-lbl {{ font-size: 0.7rem; opacity: 0.8; font-weight: bold; text-transform: uppercase; }}
         .eta-box {{ margin-top: 15px; background: rgba(52, 152, 219, 0.1); padding: 8px; border-radius: 8px; font-weight: bold; text-align: center; color: #3498db; }}
         
+        /* Custom Map Markers */
         .map-marker {{
             width: 34px; height: 34px; background: white; border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
@@ -458,47 +467,53 @@ nav_html = f"""
         .marker-fuel {{ border-color: #f39c12; background: #ffeaa7; }}
         .marker-marina {{ border-color: #3498db; background: #81ecec; }}
         
-        .boat-marker {{
-            font-size: 32px; line-height: 32px; text-align: center;
-            filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.5));
-            transition: transform 0.1s ease-out; transform-origin: center center;
+        /* Smart Zoom Labels */
+        .poi-label {{
+            background: transparent; border: none; box-shadow: none; color: {theme['text']};
+            font-weight: 900; font-size: 0.9rem;
+            text-shadow: 2px 2px 0 {theme['bg']}, -2px -2px 0 {theme['bg']}, 2px -2px 0 {theme['bg']}, -2px 2px 0 {theme['bg']};
+            opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+        }}
+        #map.show-labels .poi-label {{ opacity: 1; }}
+
+        /* Navigation Arrow Icon */
+        .nav-arrow-marker {{
             display: flex; align-items: center; justify-content: center;
+            transition: transform 0.1s linear; transform-origin: center center;
         }}
 
+        /* Buttons */
         .start-btn {{ background: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; width: 100%; }}
         .stop-btn {{ background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.8rem; float: right; }}
         
+        #recenter-btn {{
+            display: none; position: absolute; bottom: 20px; right: 20px; z-index: 1000;
+            background: {theme['card_bg']}; color: #3498db; border: 2px solid #3498db;
+            width: 48px; height: 48px; border-radius: 50%; padding: 0;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer;
+            align-items: center; justify-content: center;
+        }}
+
+        /* Steering Compass */
         .steer-compass {{
             margin: 10px auto 0 auto; width: 50px; height: 50px; border-radius: 50%;
             background: {theme['bg']}; border: 2px solid #3498db; display: flex;
             align-items: center; justify-content: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
         }}
+        
+        /* MOBILE OVERRIDES */
+        @media (max-width: 600px) {{
+            #search-container {{ width: 90%; max-width: none; left: 5%; }}
+            #filter-panel {{ top: 70px; right: 5%; }}
+        }}
     </style>
 </head>
 <body>
     <div id="map-container">
-        <div id="nav-dashboard">
-            <div style="font-size: 1.1rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center;">
-                <span id="nav-title" style="color:#3498db;">Navigating...</span>
-                <button class="stop-btn" onclick="stopNav()">🛑 Stop</button>
-            </div>
-            
-            <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
-                <div class="steer-compass">
-                    <svg id="nav-arrow" style="transition: transform 0.1s ease-out;" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="12" y1="19" x2="12" y2="5"></line>
-                        <polyline points="5 12 12 5 19 12"></polyline>
-                    </svg>
-                </div>
-                <div style="font-size: 0.8rem; opacity: 0.8; font-weight: bold; width: 80px;">TURN TO <br>TARGET</div>
-            </div>
-
-            <div class="stats-grid">
-                <div><div class="stat-lbl">Speed</div><div class="stat-val" id="gps-speed">--</div><div style="font-size:0.6rem" id="lbl-speed">mph</div></div>
-                <div><div class="stat-lbl">Distance</div><div class="stat-val" id="gps-dist" style="color:#e74c3c">--</div><div style="font-size:0.6rem" id="lbl-dist">miles</div></div>
-                <div><div class="stat-lbl">Heading</div><div class="stat-val" id="gps-heading">--</div><div style="font-size:0.6rem">deg</div></div>
-            </div>
-            <div class="eta-box">⏱️ ETA: <span id="gps-eta">Waiting for GPS...</span></div>
+        
+        <div id="search-container">
+            <input type="text" id="poi-search" placeholder="🔍 Search lake destinations..." oninput="filterSearch()">
+            <div id="search-results"></div>
         </div>
 
         <div id="filter-panel">
@@ -517,6 +532,30 @@ nav_html = f"""
             </svg>
         </button>
 
+        <div id="nav-dashboard">
+            <div style="font-size: 1.1rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center;">
+                <span id="nav-title" style="color:#3498db;">Navigating...</span>
+                <button class="stop-btn" onclick="stopNav()">🛑 Stop</button>
+            </div>
+            
+            <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
+                <div class="steer-compass">
+                    <svg id="steer-arrow" style="transition: transform 0.1s ease-out;" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="19" x2="12" y2="5"></line>
+                        <polyline points="5 12 12 5 19 12"></polyline>
+                    </svg>
+                </div>
+                <div style="font-size: 0.8rem; opacity: 0.8; font-weight: bold; width: 80px;">TURN TO <br>TARGET</div>
+            </div>
+
+            <div class="stats-grid">
+                <div><div class="stat-lbl">Speed</div><div class="stat-val" id="gps-speed">--</div><div style="font-size:0.6rem" id="lbl-speed">mph</div></div>
+                <div><div class="stat-lbl">Distance</div><div class="stat-val" id="gps-dist" style="color:#e74c3c">--</div><div style="font-size:0.6rem" id="lbl-dist">miles</div></div>
+                <div><div class="stat-lbl">Heading</div><div class="stat-val" id="gps-heading">--</div><div style="font-size:0.6rem">deg</div></div>
+            </div>
+            <div class="eta-box">⏱️ ETA: <span id="gps-eta">Waiting for GPS lock...</span></div>
+        </div>
+        
         <div id="map"></div>
     </div>
 
@@ -528,6 +567,7 @@ nav_html = f"""
     var places = {places_json};
     var markersLayer = L.layerGroup().addTo(map);
     
+    // Custom Icons
     var iconMap = {{
         "Dining": L.divIcon({{className: '', html: '<div class="map-marker marker-dining">🍔</div>', iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17]}}),
         "Fuel": L.divIcon({{className: '', html: '<div class="map-marker marker-fuel">⛽</div>', iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17]}}),
@@ -540,6 +580,7 @@ nav_html = f"""
         iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
     }});
 
+    // Render Markers & Bind Tooltips
     window.renderMarkers = function() {{
         markersLayer.clearLayers();
         var checkboxes = document.querySelectorAll('.filter-cb');
@@ -548,6 +589,11 @@ nav_html = f"""
         places.forEach((p, index) => {{
             if (activeFilters.includes(p.type)) {{
                 var marker = L.marker([p.lat, p.lon], {{icon: iconMap[p.type] || iconMap["Dining"]}}).addTo(markersLayer);
+                
+                // Add the permanent label (Hidden via CSS until zoomed in)
+                var tooltip = L.tooltip({{permanent: true, direction: 'bottom', className: 'poi-label', offset: [0, 5]}}).setContent(p.name);
+                marker.bindTooltip(tooltip);
+
                 var popupHTML = `
                     <div style="text-align: center; min-width: 130px; font-family: sans-serif;">
                         <b style="font-size: 1.1rem; color: #2c3e50;">${{p.name}}</b><br/>
@@ -561,6 +607,42 @@ nav_html = f"""
     }};
     renderMarkers();
 
+    // Smart Zoom Label Logic
+    map.on('zoomend', function() {{
+        if (map.getZoom() >= 13) {{ document.getElementById('map').classList.add('show-labels'); }} 
+        else {{ document.getElementById('map').classList.remove('show-labels'); }}
+    }});
+
+    // Search Engine
+    window.filterSearch = function() {{
+        let query = document.getElementById('poi-search').value.toLowerCase();
+        let resultsDiv = document.getElementById('search-results');
+        resultsDiv.innerHTML = "";
+        
+        if (query.length === 0) {{ resultsDiv.style.display = "none"; return; }}
+        
+        let matches = places.filter(p => p.name.toLowerCase().includes(query) || p.type.toLowerCase().includes(query));
+        
+        if (matches.length > 0) {{
+            resultsDiv.style.display = "block";
+            matches.forEach(m => {{
+                let idx = places.indexOf(m);
+                let div = document.createElement('div');
+                div.className = "search-item";
+                div.innerHTML = `<b>${{m.name}}</b> <span style="font-size:0.75rem; opacity:0.7;">(${{m.type}})</span>`;
+                div.onclick = function() {{
+                    document.getElementById('poi-search').value = "";
+                    resultsDiv.style.display = "none";
+                    startNav(idx);
+                }};
+                resultsDiv.appendChild(div);
+            }});
+        }} else {{
+            resultsDiv.style.display = "none";
+        }}
+    }};
+
+    // Global Nav Variables
     var watchId = null;
     var userMarker = null;
     var routeLine = null;
@@ -582,11 +664,10 @@ nav_html = f"""
     window.recenterMap = function() {{
         mapLocked = true;
         document.getElementById('recenter-btn').style.display = 'none';
-        if (lastLat != null && lastLon != null) {{
-            map.setView([lastLat, lastLon], 15, {{animate: true}});
-        }}
+        if (lastLat != null && lastLon != null) {{ map.setView([lastLat, lastLon], 15, {{animate: true}}); }}
     }};
 
+    // Orientation Logic
     function handleOrientation(event) {{
         if(!isNavigating) return;
         let newHeading = 0;
@@ -597,15 +678,18 @@ nav_html = f"""
     }}
 
     function updateCompassUI() {{
-        if (!isNavigating || lastLat == null || !currentTarget) return;
-        let boatEl = document.getElementById('boat-icon');
-        if (boatEl) boatEl.style.transform = `rotate(${{currentHeading}}deg)`;
-
-        const targetBearing = getBearing(lastLat, lastLon, currentTarget.lat, currentTarget.lon);
-        let relativeBearing = targetBearing - currentHeading;
-        let arrowEl = document.getElementById('nav-arrow');
-        if (arrowEl) arrowEl.style.transform = `rotate(${{relativeBearing}}deg)`;
+        if (!isNavigating) return;
         
+        // Update Nav Chevron Rotation
+        let navArrow = document.getElementById('map-nav-arrow');
+        if (navArrow) navArrow.style.transform = `rotate(${{currentHeading}}deg)`;
+
+        if (lastLat != null && currentTarget) {{
+            const targetBearing = getBearing(lastLat, lastLon, currentTarget.lat, currentTarget.lon);
+            let relativeBearing = targetBearing - currentHeading;
+            let steerArrow = document.getElementById('steer-arrow');
+            if (steerArrow) steerArrow.style.transform = `rotate(${{relativeBearing}}deg)`;
+        }}
         document.getElementById("gps-heading").innerText = Math.round(currentHeading) + "°";
     }}
 
@@ -631,13 +715,13 @@ nav_html = f"""
         mapLocked = true;
         
         document.getElementById('nav-dashboard').style.display = 'block';
+        document.getElementById('search-container').style.display = 'none';
         document.getElementById('filter-panel').style.display = 'none';
         document.getElementById('recenter-btn').style.display = 'none';
         document.getElementById('nav-title').innerText = "To: " + currentTarget.name;
         document.getElementById('lbl-speed').innerText = isMetric ? "km/h" : "mph";
         document.getElementById('lbl-dist').innerText = isMetric ? "km" : "miles";
         
-        // Tells Leaflet the map height changed so it calculates center perfectly!
         setTimeout(function() {{ map.invalidateSize(); }}, 50);
 
         if(targetMarker) map.removeLayer(targetMarker);
@@ -666,10 +750,10 @@ nav_html = f"""
         window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
 
         document.getElementById('nav-dashboard').style.display = 'none';
+        document.getElementById('search-container').style.display = 'block';
         document.getElementById('filter-panel').style.display = 'block';
         document.getElementById('recenter-btn').style.display = 'none';
         
-        // Reset map size calculation
         setTimeout(function() {{ map.invalidateSize(); }}, 50);
         
         if(routeLine) map.removeLayer(routeLine);
@@ -687,9 +771,15 @@ nav_html = f"""
         var userLatLng = [lastLat, lastLon];
         var targetLatLng = [currentTarget.lat, currentTarget.lon];
 
+        // 1. Draw/Update the Precision Arrow Icon
         if (!userMarker) {{
-            let boatHtml = `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;"><div id="boat-icon" class="boat-marker" style="transform: rotate(${{currentHeading}}deg);">🚤</div></div>`;
-            var icon = L.divIcon({{className: '', html: boatHtml, iconSize: [40, 40], iconAnchor: [20, 20]}});
+            let arrowHtml = `
+            <div id="map-nav-arrow" class="nav-arrow-marker" style="transform: rotate(${{currentHeading}}deg);">
+                <svg viewBox="0 0 24 24" width="40" height="40" style="filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.5));">
+                    <path d="M12 2L22 22L12 18L2 22L12 2Z" fill="#3498db" stroke="#ffffff" stroke-width="2"/>
+                </svg>
+            </div>`;
+            var icon = L.divIcon({{className: '', html: arrowHtml, iconSize: [40, 40], iconAnchor: [20, 20]}});
             userMarker = L.marker(userLatLng, {{icon: icon, zIndexOffset: 1000}}).addTo(map);
         }} else {{
             userMarker.setLatLng(userLatLng);
