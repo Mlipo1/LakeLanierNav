@@ -20,8 +20,7 @@ with col_title:
     st.markdown('<h1 class="main-title">⚓ Lanier Navigator</h1>', unsafe_allow_html=True)
 
 with col_controls:
-    # Removed the broken HTML wrapper. CSS will now style the toggles natively.
-    st.write("") # Slight spacing to push toggles down
+    st.write("") 
     theme_lbl = "🌙 Dark Theme" if st.session_state.dark_mode else "☀️ Light Theme"
     new_theme = st.toggle(theme_lbl, value=st.session_state.dark_mode)
     if new_theme != st.session_state.dark_mode:
@@ -60,20 +59,14 @@ st.markdown(f"""
         white-space: nowrap; margin-bottom: 0px; margin-top: 15px;
     }}
     
-    /* FIX: Style the Toggles Natively instead of using a broken wrapper */
     div[data-testid="stToggle"] {{
-        background-color: {theme['card_bg']};
-        padding: 8px 15px;
-        border-radius: 20px;
-        border: 1px solid {theme['border']};
-        margin-bottom: 5px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        background-color: {theme['card_bg']}; padding: 8px 15px; border-radius: 20px;
+        border: 1px solid {theme['border']}; margin-bottom: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }}
     div[data-testid="stToggle"] label div[role="switch"] {{ background-color: #a0aab5 !important; }}
     div[data-testid="stToggle"] label div[role="switch"][aria-checked="true"] {{ background-color: #3498db !important; }}
     
     .metrics-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px; }}
-    .wind-grid {{ display: grid; grid-template-columns: 1fr 2fr; gap: 15px; margin-bottom: 25px; }}
     
     .metric-card {{
         background: {theme['card_bg']}; border-radius: 15px; padding: 20px;
@@ -85,10 +78,6 @@ st.markdown(f"""
     .metric-sub {{ font-size: 0.8rem; font-weight: 600; margin-top: 5px; color: {theme['sub_text']}; line-height: 1.3; }}
     .text-red {{ color: #e74c3c; }}
     
-    .chop-safe {{ color: #2ecc71; font-weight: 800; }}
-    .chop-warn {{ color: #f1c40f; font-weight: 800; }}
-    .chop-danger {{ color: #e74c3c; font-weight: 800; }}
-    
     .pill-container {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 25px; margin-top: 5px; }}
     .info-pill {{
         background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 30px; padding: 8px 15px;
@@ -96,17 +85,20 @@ st.markdown(f"""
         flex: 1 1 calc(33% - 10px); min-width: 130px; box-shadow: 0 2px 5px rgba(0,0,0,0.02);
     }}
     
+    /* Consolidated Wind Container CSS */
     .wind-container {{
         background: linear-gradient(135deg, #2c3e50, #3498db); border-radius: 20px; padding: 20px; color: white;
-        text-align: center; box-shadow: 0 10px 20px rgba(0,0,0,0.15); height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.15); margin-bottom: 25px;
     }}
+    .wind-merged {{ display: flex; flex-direction: row; align-items: center; justify-content: space-around; gap: 20px; width: 100%; }}
+    .wind-stats-box {{ background: rgba(0,0,0,0.25); padding: 15px 25px; border-radius: 15px; min-width: 50%; text-align: center; }}
+    
     @keyframes wind-pulse {{
         0% {{ transform: scale(1) translateY(0px); opacity: 0.8; }}
         50% {{ transform: scale(1.1) translateY(-5px); opacity: 1; filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.8)); }}
         100% {{ transform: scale(1) translateY(0px); opacity: 0.8; }}
     }}
     .animated-wind {{ display: inline-block; animation: wind-pulse 2s infinite ease-in-out; transition: transform 0.5s ease; }}
-    .wind-stats-flex {{ margin-top: 15px; display: flex; justify-content: space-around; }}
 
     /* Wave Animation CSS */
     .sim-wave-box {{
@@ -133,12 +125,11 @@ st.markdown(f"""
         .main-title {{ text-align: center; margin-bottom: 10px; }}
         .metrics-grid {{ grid-template-columns: 1fr 1fr; gap: 10px; }}
         .metrics-grid .metric-card:nth-child(3) {{ grid-column: span 2; }}
-        .wind-grid {{ grid-template-columns: 1fr 1fr; gap: 10px; }}
-        .wind-container, .metric-card {{ padding: 15px 10px; }}
         .metric-value {{ font-size: 1.6rem !important; }}
-        .wind-stats-flex {{ flex-direction: column; gap: 8px; margin-top: 10px; }}
-        /* Center Toggles on Mobile */
         div[data-testid="stToggle"] {{ width: 100%; display: flex; justify-content: center; }}
+        /* Wind Box Stacks on Mobile */
+        .wind-merged {{ flex-direction: column; text-align: center; }}
+        .wind-stats-box {{ width: 100%; padding: 15px; }}
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -206,10 +197,10 @@ def get_compass_dir(degrees):
 
 def calculate_chop(wind, gusts):
     avg_force = (wind + gusts) / 2
-    if avg_force < 5: return "Glassy", "chop-safe"
-    elif avg_force < 12: return "Light Chop", "chop-safe"
-    elif avg_force < 20: return "Choppy (Small Boat Caution)", "chop-warn"
-    else: return "Rough / Whitecaps", "chop-danger"
+    if avg_force < 5: return "Glassy", "#a2de96" # Bright Green
+    elif avg_force < 12: return "Light Chop", "#a2de96"
+    elif avg_force < 20: return "Choppy (Small Boat Caution)", "#fde047" # Bright Yellow
+    else: return "Rough / Whitecaps", "#fca5a5" # Bright Red
 
 def calculate_boat_score(d, wave):
     score = 100 - (d["wind_mph"] * 1.5) - (d["rain_chance"] * 0.5) - (wave * 8)
@@ -253,8 +244,9 @@ else:
     disp_wave = wave_height
 
 direction_text = get_compass_dir(d['wind_dir'])
-chop_text, chop_class = calculate_chop(d['wind_mph'], d['gusts'])
-wind_rotation = (d['wind_dir'] + 180) % 360
+chop_text, chop_color = calculate_chop(d['wind_mph'], d['gusts'])
+# Arrow points exactly where the wind is coming from (Meteorological standard)
+wind_rotation = d['wind_dir']
 
 # --- Top Level HTML Formatting ---
 trend_arrow = "↑" if trend_24h >= 0 else "↓"
@@ -351,32 +343,35 @@ with sim_col:
     """
     st.markdown(wave_sim_html, unsafe_allow_html=True)
 
-# --- Wind & Surface Stats ---
+# --- Consolidated Wind Section ---
 st.markdown("### 💨 Live Wind Details")
 st.markdown(f"""
-<div class="wind-grid">
-    <div class="wind-container">
-        <div style="font-size: 0.8rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; opacity: 0.9;">WIND DIR</div>
-        <div style="transform: rotate({wind_rotation}deg);" class="animated-wind">
-            <svg width="45" height="45" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="19" x2="12" y2="5"></line>
-                <polyline points="5 12 12 5 19 12"></polyline>
-            </svg>
-        </div>
-        <div style="font-size: 1.5rem; font-weight: 900; margin-top: 8px;">{direction_text}</div>
-        <div style="font-size: 0.9rem; opacity: 0.8;">{d['wind_dir']}°</div>
-    </div>
-    <div class="metric-card" style="margin-bottom: 0;">
-        <div class="metric-title">Wind Condition</div>
-        <div class="metric-value {chop_class}" style="font-size: 1.15rem; margin-top: 5px;">{chop_text}</div>
-        <div class="wind-stats-flex">
-            <div>
-                <div class="metric-title" style="font-size: 0.75rem;">Sustained</div>
-                <div style="font-size: 1.1rem; font-weight: bold; color: {theme['text']};">{disp_wind} <span style="font-size:0.75rem;">{unit_speed}</span></div>
+<div class="wind-container">
+    <div class="wind-merged">
+        <div style="text-align: center;">
+            <div style="font-size: 0.8rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; opacity: 0.9;">WIND DIR</div>
+            <div style="transform: rotate({wind_rotation}deg);" class="animated-wind">
+                <svg width="45" height="45" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="19" x2="12" y2="5"></line>
+                    <polyline points="5 12 12 5 19 12"></polyline>
+                </svg>
             </div>
-            <div>
-                <div class="metric-title" style="font-size: 0.75rem;">Gusts</div>
-                <div style="font-size: 1.1rem; font-weight: bold; color: #e74c3c;">{disp_gusts} <span style="font-size:0.75rem;">{unit_speed}</span></div>
+            <div style="font-size: 1.5rem; font-weight: 900; margin-top: 8px;">{direction_text}</div>
+            <div style="font-size: 0.9rem; opacity: 0.8;">{d['wind_dir']}°</div>
+        </div>
+        
+        <div class="wind-stats-box">
+            <div style="font-size: 0.8rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px; opacity: 0.9;">SURFACE CONDITION</div>
+            <div style="color: {chop_color}; font-weight: 800; font-size: 1.25rem; margin-bottom: 15px;">{chop_text}</div>
+            <div style="display: flex; justify-content: space-around; gap: 15px;">
+                <div>
+                    <div style="font-size: 0.75rem; text-transform: uppercase; opacity: 0.8;">Sustained</div>
+                    <div style="font-size: 1.3rem; font-weight: bold;">{disp_wind} <span style="font-size:0.75rem;">{unit_speed}</span></div>
+                </div>
+                <div>
+                    <div style="font-size: 0.75rem; text-transform: uppercase; opacity: 0.8;">Gusts</div>
+                    <div style="font-size: 1.3rem; font-weight: bold; color: #ff7675;">{disp_gusts} <span style="font-size:0.75rem;">{unit_speed}</span></div>
+                </div>
             </div>
         </div>
     </div>
