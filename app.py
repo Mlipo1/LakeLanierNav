@@ -385,7 +385,7 @@ nav_html = f"""
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body {{ margin: 0; padding: 0; font-family: -apple-system, sans-serif; background: transparent; }}
+        body {{ margin: 0; padding: 0; font-family: -apple-system, sans-serif; background: transparent; touch-action: none; }}
         
         #map-container {{ position: relative; height: 600px; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid {theme['border']}; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }}
         #map {{ height: 100%; width: 100%; z-index: 1; }}
@@ -592,6 +592,52 @@ nav_html = f"""
     var lastLat = null;
     var lastLon = null;
     var currentHeading = 0;
+    var lockedScrollY = 0; // Remembers page position for unlocking
+
+    // AGGRESSIVE SCREEN LOCK SCRIPT
+    function executeScreenLock() {{
+        try {{
+            let iframe = window.frameElement;
+            if (iframe) {{
+                // Auto-scroll exactly to the map window, bypassing YouTube feed
+                iframe.scrollIntoView({{behavior: "auto", block: "start"}});
+            }}
+            
+            // Give browser 50ms to finish scrolling, then freeze it
+            setTimeout(() => {{
+                let sy = window.parent.scrollY || 0;
+                lockedScrollY = sy;
+                
+                let parentStyle = window.parent.document.getElementById('nav-lock-style');
+                if (!parentStyle) {{
+                    parentStyle = window.parent.document.createElement('style');
+                    parentStyle.id = 'nav-lock-style';
+                    window.parent.document.head.appendChild(parentStyle);
+                }}
+                
+                // Physically disable scrolling & hide Streamlit header
+                parentStyle.innerHTML = `
+                    header[data-testid="stHeader"] {{ display: none !important; }}
+                    .stApp, [data-testid="stAppViewContainer"] {{
+                        overflow: hidden !important;
+                        position: fixed !important;
+                        width: 100vw !important;
+                        top: -${{sy}}px !important;
+                        touch-action: none !important;
+                    }}
+                `;
+            }}, 50);
+        }} catch(e) {{ console.warn("Lock bypassed due to browser security"); }}
+    }}
+
+    function executeScreenUnlock() {{
+        try {{
+            let parentStyle = window.parent.document.getElementById('nav-lock-style');
+            if (parentStyle) {{ parentStyle.innerHTML = ""; }}
+            // Return user to original scroll position
+            window.parent.scrollTo(0, lockedScrollY);
+        }} catch(e) {{}}
+    }}
 
     map.on('dragstart', function() {{
         if (isNavigating) {{
@@ -636,17 +682,8 @@ nav_html = f"""
         // 1. FOCUS MODE: Hide all other POIs
         markersLayer.clearLayers();
 
-        // 2. Lock Parent Window Scrolling (Aggressive target for Streamlit & iOS)
-        try {{
-            if (window.frameElement) {{
-                window.frameElement.scrollIntoView({{behavior: "smooth", block: "center"}});
-            }}
-            let containers = window.parent.document.querySelectorAll('.stApp, [data-testid="stAppViewContainer"], .main, body, html');
-            containers.forEach(c => {{
-                c.style.setProperty('overflow', 'hidden', 'important');
-                c.style.setProperty('touch-action', 'none', 'important');
-            }});
-        }} catch(e) {{ console.log("Cross-origin scroll lock bypassed"); }}
+        // 2. TRIGGER SCREEN LOCK
+        executeScreenLock();
         
         // 3. Update UI
         document.getElementById('nav-dashboard').classList.add('active');
@@ -682,14 +719,8 @@ nav_html = f"""
         window.removeEventListener('deviceorientation', handleOrientation, true);
         window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
 
-        // 1. Restore Parent Window Scrolling
-        try {{
-            let containers = window.parent.document.querySelectorAll('.stApp, [data-testid="stAppViewContainer"], .main, body, html');
-            containers.forEach(c => {{
-                c.style.setProperty('overflow', 'auto', 'important');
-                c.style.setProperty('touch-action', 'auto', 'important');
-            }});
-        }} catch(e) {{}}
+        // 1. TRIGGER SCREEN UNLOCK
+        executeScreenUnlock();
 
         // 2. Restore all POIs
         renderMarkers();
