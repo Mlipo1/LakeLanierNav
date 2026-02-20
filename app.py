@@ -20,17 +20,15 @@ with col_title:
     st.markdown('<h1 class="main-title">⚓ Lanier Navigator</h1>', unsafe_allow_html=True)
 
 with col_controls:
-    st.write("") # Spacing
+    st.write("") 
     st.markdown('<div class="control-panel">', unsafe_allow_html=True)
     
-    # Toggle 1: Theme (with dynamic text and instant rerun)
     theme_lbl = "🌙 Dark Theme" if st.session_state.dark_mode else "☀️ Light Theme"
     new_theme = st.toggle(theme_lbl, value=st.session_state.dark_mode)
     if new_theme != st.session_state.dark_mode:
         st.session_state.dark_mode = new_theme
         st.rerun()
         
-    # Toggle 2: Units (with dynamic text and instant rerun)
     unit_lbl = "📏 Metric Units" if st.session_state.is_metric else "📏 Imperial Units"
     new_unit = st.toggle(unit_lbl, value=st.session_state.is_metric)
     if new_unit != st.session_state.is_metric:
@@ -55,23 +53,28 @@ st.markdown(f"""
     .stApp {{ background-color: {theme['bg']} !important; }}
     
     /* Force Streamlit Labels and Text to use Theme Color */
-    .main-title, h3, div[data-testid="stWidgetLabel"] p, p {{ 
+    h3, div[data-testid="stWidgetLabel"] p, p {{ 
         color: {theme['text']} !important; 
         font-weight: 600;
     }}
     
-    /* FIX: Force Toggle Track Visibility in Light Mode */
-    div[data-testid="stToggle"] label div[role="switch"] {{
-        background-color: #a0aab5 !important;
-    }}
-    div[data-testid="stToggle"] label div[role="switch"][aria-checked="true"] {{
-        background-color: #3498db !important;
+    /* Responsive Title */
+    .main-title {{
+        color: {theme['text']} !important;
+        font-weight: 800;
+        font-size: clamp(1.8rem, 5vw, 2.5rem); /* Shrinks dynamically on mobile */
+        white-space: nowrap;
+        margin-bottom: 0px;
     }}
     
-    /* Control Panel Box */
+    /* FIX: Force Toggle Track Visibility in Light Mode */
+    div[data-testid="stToggle"] label div[role="switch"] {{ background-color: #a0aab5 !important; }}
+    div[data-testid="stToggle"] label div[role="switch"][aria-checked="true"] {{ background-color: #3498db !important; }}
+    
+    /* Control Panel Box - Made more compact for mobile */
     .control-panel {{
         background-color: {theme['card_bg']};
-        padding: 5px 15px 15px 15px;
+        padding: 10px 15px 5px 15px;
         border-radius: 12px;
         border: 2px solid {theme['border']};
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -89,7 +92,7 @@ st.markdown(f"""
         border: 1px solid {theme['border']};
     }}
     .metric-title {{ color: {theme['sub_text']}; font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }}
-    .metric-value {{ color: {theme['text']}; font-size: 2.2rem; font-weight: 900; }}
+    .metric-value {{ color: {theme['text']}; font-size: 2.2rem; font-weight: 900; line-height: 1.2; }}
     .metric-sub {{ font-size: 0.9rem; font-weight: 600; margin-top: 5px; color: {theme['sub_text']}; }}
     .text-red {{ color: #e74c3c; }}
     .text-blue {{ color: #3498db; }}
@@ -99,12 +102,27 @@ st.markdown(f"""
     .chop-warn {{ color: #f1c40f; font-weight: 800; }}
     .chop-danger {{ color: #e74c3c; font-weight: 800; }}
     
-    /* Small Info Pills */
+    /* Responsive Flexbox Grid for Quick Info Pills */
+    .pill-container {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+        margin-bottom: 25px;
+        margin-top: 5px;
+    }}
     .info-pill {{
-        background: {theme['card_bg']}; border: 1px solid {theme['border']};
-        border-radius: 30px; padding: 8px 10px; color: {theme['text']};
-        font-size: 0.85rem; font-weight: 600; text-align: center;
-        display: inline-block; width: 100%; margin-bottom: 10px; white-space: nowrap;
+        background: {theme['card_bg']}; 
+        border: 1px solid {theme['border']};
+        border-radius: 30px; 
+        padding: 8px 15px; 
+        color: {theme['text']};
+        font-size: 0.85rem; 
+        font-weight: 600; 
+        text-align: center;
+        flex: 1 1 calc(33% - 10px); /* Tries to fit 3 across */
+        min-width: 130px; /* Forces wrap to 2 across on smaller mobile screens */
+        box-shadow: 0 2px 5px rgba(0,0,0,0.02);
     }}
     
     /* Wind Container */
@@ -113,12 +131,29 @@ st.markdown(f"""
         border-radius: 20px; padding: 25px; color: white; text-align: center;
         box-shadow: 0 10px 20px rgba(0,0,0,0.15); margin-bottom: 20px; height: 100%;
     }}
+    
+    /* Wind Animation */
+    @keyframes wind-pulse {{
+        0% {{ transform: scale(1) translateY(0px); opacity: 0.8; }}
+        50% {{ transform: scale(1.1) translateY(-5px); opacity: 1; filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.8)); }}
+        100% {{ transform: scale(1) translateY(0px); opacity: 0.8; }}
+    }}
+    .animated-wind {{
+        display: inline-block;
+        animation: wind-pulse 2s infinite ease-in-out;
+        transition: transform 0.5s ease;
+    }}
+    
+    /* Mobile Override Tweaks */
+    @media (max-width: 600px) {{
+        .main-title {{ text-align: center; margin-bottom: 15px; }}
+        .control-panel {{ padding: 15px; display: flex; flex-direction: column; align-items: center; gap: 5px; }}
+    }}
     </style>
     """, unsafe_allow_html=True)
 
 @st.cache_data(ttl=300) 
 def fetch_data():
-    # Base fallback is 47 (Average Lanier temp in Feb)
     data = {
         "level": "N/A", "air_temp": "N/A", "water_temp": 47, 
         "wind_mph": 0, "wind_dir": 0, "gusts": 0, "uv": 0, 
@@ -156,16 +191,13 @@ def fetch_data():
     except Exception:
         pass
 
-    # Safe Water Scraper
     try:
         lm_url = "https://lakemonster.com/lake/GA/Lake-Lanier-234"
         headers = {'User-Agent': 'Mozilla/5.0'}
         lm_res = requests.get(lm_url, headers=headers, timeout=5)
-        # Search for exact formatting to prevent grabbing random digits
         match = re.search(r'(\d{2,3})(?:\s*°|\s*&deg;|\s*deg)?\s*F', lm_res.text, re.IGNORECASE)
         if match:
             scraped_temp = int(match.group(1))
-            # SANITY CHECK: Water must be between 35F and 95F
             if 35 <= scraped_temp <= 95:
                 data["water_temp"] = scraped_temp
     except Exception:
@@ -243,16 +275,18 @@ with c2:
 with c3:
     st.markdown(f'<div class="metric-card"><div class="metric-title">Air Temp</div><div class="metric-value">{disp_air_temp}{unit_temp}</div><div class="metric-sub">Flowery Branch</div></div>', unsafe_allow_html=True)
 
-# Row 1.5: Quick Boating Info
-qc1, qc2, qc3 = st.columns(3)
-with qc1: st.markdown(f'<div class="info-pill">🌅 Sun: {d["sunrise"]} / {d["sunset"]}</div>', unsafe_allow_html=True)
-with qc2: st.markdown(f'<div class="info-pill">🌧️ Rain Chance: {d["rain_chance"]}%</div>', unsafe_allow_html=True)
-with qc3: st.markdown(f'<div class="info-pill">🌫️ Vis: {disp_vis} {unit_vis}</div>', unsafe_allow_html=True)
-
-qc4, qc5, qc6 = st.columns(3)
-with qc4: st.markdown(f'<div class="info-pill">🌡️ Pressure: {disp_press} {unit_press}</div>', unsafe_allow_html=True)
-with qc5: st.markdown(f'<div class="info-pill">☁️ Clouds: {d["clouds"]}%</div>', unsafe_allow_html=True)
-with qc6: st.markdown(f'<div class="info-pill">☀️ UV Index: {round(d["uv"],1)}</div>', unsafe_allow_html=True)
+# Row 1.5: Quick Boating Info (Now using purely responsive Flexbox HTML instead of Streamlit Columns)
+pill_html = f"""
+<div class="pill-container">
+    <div class="info-pill">🌅 Sun: {d["sunrise"]} / {d["sunset"]}</div>
+    <div class="info-pill">🌧️ Rain: {d["rain_chance"]}%</div>
+    <div class="info-pill">🌫️ Vis: {disp_vis} {unit_vis}</div>
+    <div class="info-pill">🌡️ Pres: {disp_press} {unit_press}</div>
+    <div class="info-pill">☁️ Clouds: {d["clouds"]}%</div>
+    <div class="info-pill">☀️ UV: {round(d["uv"],1)}</div>
+</div>
+"""
+st.markdown(pill_html, unsafe_allow_html=True)
 
 # Row 2: Animated Wind & Surface Conditions
 st.markdown("### 💨 Live Wind & Surface Simulation")
