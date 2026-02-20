@@ -46,6 +46,16 @@ theme = {
 
 st.markdown(f"""
     <style>
+    /* NEW: Prevent Mobile Horizontal Scrolling & Bouncing */
+    html, body, [data-testid="stAppViewContainer"], .stApp {{
+        overflow-x: hidden !important;
+        max-width: 100vw !important;
+    }}
+    
+    * {{
+        box-sizing: border-box !important;
+    }}
+
     /* Global App Background */
     .stApp {{ background-color: {theme['bg']} !important; }}
     
@@ -101,7 +111,7 @@ st.markdown(f"""
     .animated-wind {{ display: inline-block; animation: wind-pulse 2s infinite ease-in-out; transition: transform 0.5s ease; }}
     .wind-stats-flex {{ margin-top: 15px; display: flex; justify-content: space-around; }}
 
-    /* NEW: Dynamic Wave Animation CSS */
+    /* Wave Animation CSS */
     .sim-wave-box {{
         position: relative;
         background: linear-gradient(to bottom, transparent 0%, rgba(52, 152, 219, 0.1) 100%);
@@ -326,25 +336,19 @@ if alerts:
     </div>
     """, unsafe_allow_html=True)
 
-# --- NEW: Live Camera & Wave Simulator Section ---
+# --- Live Camera & Wave Simulator Section ---
 st.markdown("### 📷 Live Camera & Wave Simulator")
 
-# Streamlit columns automatically stack perfectly on mobile phones
 cam_col, sim_col = st.columns([1, 1])
 
 with cam_col:
-    st.markdown('<div class="metric-title" style="margin-bottom:10px;">🔴 Lake Lanier Sailing Club Live</div>', unsafe_allow_html=True)
-    # Streamlit natively handles YouTube embeds and makes them responsive
+    st.markdown('<div class="metric-title" style="margin-bottom:10px;">🔴 LLSC Live Stream</div>', unsafe_allow_html=True)
     st.video("https://www.youtube.com/watch?v=QjJC9ORyOMQ")
 
 with sim_col:
     st.markdown('<div class="metric-title" style="margin-bottom:10px;">🌊 Wave Height Simulation</div>', unsafe_allow_html=True)
     
-    # Mathematical variables to control the CSS animation dynamically
-    # Wave Scale: Flattens out near 0 wind, scales up to 2.5x height on high wind
     css_wave_scale = max(0.15, min(wave_height * 0.6 + 0.15, 2.5))
-    
-    # Animation Speed: Glassy water moves slow (8s), high wind moves extremely fast (1.5s)
     css_speed_front = max(1.5, 8.0 - (d["wind_mph"] * 0.25))
     css_speed_back = max(1.2, 6.0 - (d["wind_mph"] * 0.25))
 
