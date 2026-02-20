@@ -4,9 +4,8 @@ import folium
 from streamlit_folium import st_folium
 import requests
 import re
-from datetime import datetime, timedelta
-from folium import plugins
 import json
+from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Lanier Navigator", layout="centered", page_icon="⚓")
 
@@ -91,7 +90,6 @@ st.markdown(f"""
         flex: 1 1 calc(33% - 10px); min-width: 130px; box-shadow: 0 2px 5px rgba(0,0,0,0.02);
     }}
     
-    /* Consolidated Wind Container CSS */
     .wind-container {{
         background: linear-gradient(135deg, #2c3e50, #3498db); border-radius: 20px; padding: 20px; color: white;
         box-shadow: 0 10px 20px rgba(0,0,0,0.15); margin-bottom: 25px;
@@ -106,7 +104,6 @@ st.markdown(f"""
     }}
     .animated-wind {{ display: inline-block; animation: wind-pulse 2s infinite ease-in-out; }}
 
-    /* Wave Animation CSS */
     .sim-wave-box {{
         position: relative; background: linear-gradient(to bottom, transparent 0%, rgba(52, 152, 219, 0.1) 100%);
         height: 100px; border-radius: 10px; overflow: hidden; margin-top: 15px; width: 100%; border-bottom: 3px solid #3498db;
@@ -126,7 +123,6 @@ st.markdown(f"""
         100% {{ transform: translateX(-50%) scaleY(var(--wave-scale, 1)); }}
     }}
 
-    /* MOBILE OVERRIDES */
     @media (max-width: 600px) {{
         .main-title {{ text-align: center; margin-bottom: 10px; }}
         .metrics-grid {{ grid-template-columns: 1fr 1fr; gap: 10px; }}
@@ -147,7 +143,6 @@ def fetch_data():
         "wind_mph": 0, "wind_dir": 0, "gusts": 0, "uv": 0, 
         "sunrise": "N/A", "sunset": "N/A", "rain_chance": 0, "visibility": "N/A", "pressure": "N/A", "clouds": 0
     }
-    
     try:
         usgs_url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400&parameterCd=00062"
         usgs_res = requests.get(usgs_url, timeout=5).json()
@@ -159,7 +154,6 @@ def fetch_data():
         meteo_url = "https://api.open-meteo.com/v1/forecast?latitude=34.18&longitude=-83.98&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,visibility,surface_pressure,cloud_cover&daily=sunrise,sunset,precipitation_probability_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York"
         meteo_res = requests.get(meteo_url, timeout=5).json()
         current, daily = meteo_res['current'], meteo_res['daily']
-        
         data["air_temp"] = current['temperature_2m']
         data["wind_mph"] = current['wind_speed_10m']
         data["wind_dir"] = current['wind_direction_10m']
@@ -294,7 +288,6 @@ st.markdown(f"""
 
 # --- Boating Score & Safety Banner ---
 st.markdown("### 🚦 Boating Conditions & Safety")
-
 boat_score = calculate_boat_score(d, wave_height)
 alerts = get_safety_alert(d, wave_height)
 
@@ -347,7 +340,7 @@ with sim_col:
     """
     st.markdown(wave_sim_html, unsafe_allow_html=True)
 
-# --- Consolidated Wind Section (FIXED NESTED ANIMATION) ---
+# --- Consolidated Wind Section ---
 st.markdown("### 💨 Live Wind Details")
 
 wind_html = f"""
@@ -385,7 +378,10 @@ wind_html = f"""
 """
 st.markdown(wind_html, unsafe_allow_html=True)
 
-# --- Map ---
+
+# ---------------------------------------------------------
+# MAP & NAVIGATION DASHBOARD
+# ---------------------------------------------------------
 st.markdown("### 📍 Dock & Dine Navigation")
 
 places = [
@@ -413,10 +409,23 @@ nav_html = f"""
     <style>
         body {{ margin: 0; padding: 0; font-family: -apple-system, sans-serif; background: transparent; }}
         
-        #map-container {{ position: relative; height: 550px; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid {theme['border']}; }}
-        #map {{ height: 100%; width: 100%; z-index: 1; }}
+        /* NEW: Flexbox layout so map physically shrinks when dashboard opens */
+        #map-container {{ 
+            display: flex; flex-direction: column; position: relative; 
+            height: 550px; width: 100%; border-radius: 12px; overflow: hidden; 
+            border: 1px solid {theme['border']}; 
+        }}
         
-        /* Floating Map Filters */
+        /* Map takes up all remaining space */
+        #map {{ flex: 1; width: 100%; z-index: 1; }}
+        
+        /* Dashboard pushes map down */
+        #nav-dashboard {{
+            display: none; width: 100%; z-index: 1001;
+            background: {theme['card_bg']}; color: {theme['text']}; padding: 15px;
+            border-bottom: 3px solid #3498db; box-sizing: border-box;
+        }}
+        
         #filter-panel {{
             position: absolute; top: 10px; right: 10px; z-index: 1000;
             background: {theme['card_bg']}; color: {theme['text']};
@@ -426,20 +435,13 @@ nav_html = f"""
         .filter-cb {{ margin-right: 8px; transform: scale(1.2); cursor: pointer; }}
         .filter-row {{ margin-bottom: 8px; display: flex; align-items: center; cursor: pointer; }}
 
-        /* Re-Center Button */
+        /* New Floating Crosshair Recenter Button */
         #recenter-btn {{
             display: none; position: absolute; bottom: 20px; right: 20px; z-index: 1000;
-            background: #3498db; color: white; border: none; padding: 12px 20px;
-            border-radius: 30px; font-weight: 800; box-shadow: 0 4px 10px rgba(0,0,0,0.4);
-            cursor: pointer; font-size: 1rem;
-        }}
-
-        /* Navigation Dashboard Overlay */
-        #nav-dashboard {{
-            display: none; position: absolute; top: 0; left: 0; width: 100%; z-index: 1001;
-            background: {theme['card_bg']}; color: {theme['text']}; padding: 15px;
-            border-bottom: 3px solid #3498db; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-            box-sizing: border-box; border-radius: 12px 12px 0 0;
+            background: {theme['card_bg']}; color: #3498db; border: 2px solid #3498db;
+            width: 48px; height: 48px; border-radius: 50%; padding: 0;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer;
+            align-items: center; justify-content: center;
         }}
         
         .stats-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; margin-top: 15px; }}
@@ -447,7 +449,6 @@ nav_html = f"""
         .stat-lbl {{ font-size: 0.7rem; opacity: 0.8; font-weight: bold; text-transform: uppercase; }}
         .eta-box {{ margin-top: 15px; background: rgba(52, 152, 219, 0.1); padding: 8px; border-radius: 8px; font-weight: bold; text-align: center; color: #3498db; }}
         
-        /* Custom Map Markers */
         .map-marker {{
             width: 34px; height: 34px; background: white; border-radius: 50%;
             display: flex; align-items: center; justify-content: center;
@@ -457,20 +458,16 @@ nav_html = f"""
         .marker-fuel {{ border-color: #f39c12; background: #ffeaa7; }}
         .marker-marina {{ border-color: #3498db; background: #81ecec; }}
         
-        /* The Boat Icon - Ensures rotation happens perfectly in the center */
         .boat-marker {{
             font-size: 32px; line-height: 32px; text-align: center;
             filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.5));
-            transition: transform 0.1s ease-out;
-            transform-origin: center center;
+            transition: transform 0.1s ease-out; transform-origin: center center;
             display: flex; align-items: center; justify-content: center;
         }}
 
-        /* Buttons */
         .start-btn {{ background: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; width: 100%; }}
         .stop-btn {{ background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.8rem; float: right; }}
         
-        /* Steering Compass */
         .steer-compass {{
             margin: 10px auto 0 auto; width: 50px; height: 50px; border-radius: 50%;
             background: {theme['bg']}; border: 2px solid #3498db; display: flex;
@@ -480,14 +477,6 @@ nav_html = f"""
 </head>
 <body>
     <div id="map-container">
-        <div id="filter-panel">
-            <label class="filter-row"><input type="checkbox" class="filter-cb" value="Dining" checked onchange="renderMarkers()"> 🍽️ Dining</label>
-            <label class="filter-row"><input type="checkbox" class="filter-cb" value="Fuel" checked onchange="renderMarkers()"> ⛽ Fuel</label>
-            <label class="filter-row" style="margin-bottom:0;"><input type="checkbox" class="filter-cb" value="Marina" checked onchange="renderMarkers()"> ⚓ Marinas</label>
-        </div>
-
-        <button id="recenter-btn" onclick="recenterMap()">🎯 Center</button>
-
         <div id="nav-dashboard">
             <div style="font-size: 1.1rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center;">
                 <span id="nav-title" style="color:#3498db;">Navigating...</span>
@@ -511,7 +500,23 @@ nav_html = f"""
             </div>
             <div class="eta-box">⏱️ ETA: <span id="gps-eta">Waiting for GPS...</span></div>
         </div>
-        
+
+        <div id="filter-panel">
+            <label class="filter-row"><input type="checkbox" class="filter-cb" value="Dining" checked onchange="renderMarkers()"> 🍽️ Dining</label>
+            <label class="filter-row"><input type="checkbox" class="filter-cb" value="Fuel" checked onchange="renderMarkers()"> ⛽ Fuel</label>
+            <label class="filter-row" style="margin-bottom:0;"><input type="checkbox" class="filter-cb" value="Marina" checked onchange="renderMarkers()"> ⚓ Marinas</label>
+        </div>
+
+        <button id="recenter-btn" onclick="recenterMap()">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="10"></circle>
+                <line x1="22" y1="12" x2="18" y2="12"></line>
+                <line x1="6" y1="12" x2="2" y2="12"></line>
+                <line x1="12" y1="6" x2="12" y2="2"></line>
+                <line x1="12" y1="22" x2="12" y2="18"></line>
+            </svg>
+        </button>
+
         <div id="map"></div>
     </div>
 
@@ -556,7 +561,6 @@ nav_html = f"""
     }};
     renderMarkers();
 
-    // Global Variables
     var watchId = null;
     var userMarker = null;
     var routeLine = null;
@@ -566,17 +570,15 @@ nav_html = f"""
     var mapLocked = true;
     var lastLat = null;
     var lastLon = null;
-    var currentHeading = 0; // Hardware compass heading
+    var currentHeading = 0;
 
-    // Unlock map if user drags it
     map.on('dragstart', function() {{
         if (isNavigating) {{
             mapLocked = false;
-            document.getElementById('recenter-btn').style.display = 'block';
+            document.getElementById('recenter-btn').style.display = 'flex';
         }}
     }});
 
-    // Recenter Button logic
     window.recenterMap = function() {{
         mapLocked = true;
         document.getElementById('recenter-btn').style.display = 'none';
@@ -585,30 +587,20 @@ nav_html = f"""
         }}
     }};
 
-    // Compass / Device Orientation Logic
     function handleOrientation(event) {{
         if(!isNavigating) return;
-        
         let newHeading = 0;
-        if (event.webkitCompassHeading) {{
-            // Native iOS Compass
-            newHeading = event.webkitCompassHeading;
-        }} else if (event.alpha != null) {{
-            // Android / Standard fallback
-            newHeading = 360 - event.alpha;
-        }}
+        if (event.webkitCompassHeading) {{ newHeading = event.webkitCompassHeading; }} 
+        else if (event.alpha != null) {{ newHeading = 360 - event.alpha; }}
         currentHeading = newHeading;
         updateCompassUI();
     }}
 
     function updateCompassUI() {{
         if (!isNavigating || lastLat == null || !currentTarget) return;
-        
-        // 1. Physically spin the boat icon
         let boatEl = document.getElementById('boat-icon');
         if (boatEl) boatEl.style.transform = `rotate(${{currentHeading}}deg)`;
 
-        // 2. Mathematically spin the steering arrow
         const targetBearing = getBearing(lastLat, lastLon, currentTarget.lat, currentTarget.lon);
         let relativeBearing = targetBearing - currentHeading;
         let arrowEl = document.getElementById('nav-arrow');
@@ -617,7 +609,6 @@ nav_html = f"""
         document.getElementById("gps-heading").innerText = Math.round(currentHeading) + "°";
     }}
 
-    // Advanced Marine Math
     function getDistance(lat1, lon1, lat2, lon2) {{
         const R = isMetric ? 6371 : 3958.8; 
         const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -629,10 +620,8 @@ nav_html = f"""
     function getBearing(lat1, lon1, lat2, lon2) {{
         var dLon = (lon2 - lon1) * Math.PI / 180;
         var y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
-        var x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
-                Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLon);
-        var brng = Math.atan2(y, x) * 180 / Math.PI;
-        return (brng + 360) % 360;
+        var x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) - Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLon);
+        return ((Math.atan2(y, x) * 180 / Math.PI) + 360) % 360;
     }}
 
     window.startNav = function(index) {{
@@ -648,28 +637,23 @@ nav_html = f"""
         document.getElementById('lbl-speed').innerText = isMetric ? "km/h" : "mph";
         document.getElementById('lbl-dist').innerText = isMetric ? "km" : "miles";
         
+        // Tells Leaflet the map height changed so it calculates center perfectly!
+        setTimeout(function() {{ map.invalidateSize(); }}, 50);
+
         if(targetMarker) map.removeLayer(targetMarker);
         targetMarker = L.marker([currentTarget.lat, currentTarget.lon], {{icon: targetIcon}}).addTo(map);
 
-        // Request Gyro/Compass Access (Required for iOS 13+)
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {{
-            DeviceOrientationEvent.requestPermission()
-                .then(permissionState => {{
-                    if (permissionState === 'granted') {{
-                        window.addEventListener('deviceorientation', handleOrientation, true);
-                    }}
-                }}).catch(console.error);
+            DeviceOrientationEvent.requestPermission().then(permissionState => {{
+                if (permissionState === 'granted') {{ window.addEventListener('deviceorientation', handleOrientation, true); }}
+            }}).catch(console.error);
         }} else {{
-            // Android / Older browsers
             window.addEventListener('deviceorientationabsolute', handleOrientation, true);
             window.addEventListener('deviceorientation', handleOrientation, true);
         }}
 
-        // Start GPS Polling
         if (navigator.geolocation) {{
-            watchId = navigator.geolocation.watchPosition(updateNav, handleError, {{
-                enableHighAccuracy: true, maximumAge: 1000, timeout: 5000
-            }});
+            watchId = navigator.geolocation.watchPosition(updateNav, handleError, {{ enableHighAccuracy: true, maximumAge: 1000, timeout: 5000 }});
         }}
     }};
 
@@ -678,13 +662,15 @@ nav_html = f"""
         mapLocked = false;
         if(watchId) navigator.geolocation.clearWatch(watchId);
         
-        // Remove Compass Listeners to save battery
         window.removeEventListener('deviceorientation', handleOrientation, true);
         window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
 
         document.getElementById('nav-dashboard').style.display = 'none';
         document.getElementById('filter-panel').style.display = 'block';
         document.getElementById('recenter-btn').style.display = 'none';
+        
+        // Reset map size calculation
+        setTimeout(function() {{ map.invalidateSize(); }}, 50);
         
         if(routeLine) map.removeLayer(routeLine);
         if(targetMarker) map.removeLayer(targetMarker);
@@ -701,9 +687,7 @@ nav_html = f"""
         var userLatLng = [lastLat, lastLon];
         var targetLatLng = [currentTarget.lat, currentTarget.lon];
 
-        // 1. Draw/Update the Boat Icon
         if (!userMarker) {{
-            // Provide a wrapper div to ensure the CSS transform origin works perfectly
             let boatHtml = `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center;"><div id="boat-icon" class="boat-marker" style="transform: rotate(${{currentHeading}}deg);">🚤</div></div>`;
             var icon = L.divIcon({{className: '', html: boatHtml, iconSize: [40, 40], iconAnchor: [20, 20]}});
             userMarker = L.marker(userLatLng, {{icon: icon, zIndexOffset: 1000}}).addTo(map);
@@ -711,19 +695,14 @@ nav_html = f"""
             userMarker.setLatLng(userLatLng);
         }}
 
-        // 2. Strict Map Lock
-        if (mapLocked) {{
-            map.setView(userLatLng, 15, {{animate: true}});
-        }}
+        if (mapLocked) {{ map.setView(userLatLng, 15, {{animate: true}}); }}
 
-        // 3. Draw Route Line
         if (!routeLine) {{
             routeLine = L.polyline([userLatLng, targetLatLng], {{color: '#3498db', weight: 4, dashArray: '8, 8'}}).addTo(map);
         }} else {{
             routeLine.setLatLngs([userLatLng, targetLatLng]);
         }}
 
-        // 4. Update Dashboard Math
         const dist = getDistance(lastLat, lastLon, currentTarget.lat, currentTarget.lon);
         document.getElementById("gps-dist").innerText = dist.toFixed(2);
 
@@ -743,7 +722,6 @@ nav_html = f"""
             document.getElementById("gps-eta").innerText = "Start moving...";
         }}
         
-        // Trigger compass update just in case
         updateCompassUI();
     }}
 
@@ -757,9 +735,9 @@ nav_html = f"""
 """
 st.components.v1.html(nav_html, height=570)
 
-# --- Pre-Departure & Utilities ---
+# --- Utilities ---
 st.markdown("---")
-with st.expander("✅ Pre-Departure Checklist (Don't sink the boat!)"):
+with st.expander("✅ Pre-Departure Checklist"):
     st.checkbox("Hull drain plug securely installed")
     st.checkbox("Battery switch set to ON (or ALL/1+2)")
     st.checkbox("Engine blower run for 4 minutes before starting")
@@ -780,7 +758,6 @@ with st.expander("⛽ Fuel Range Estimator"):
 with st.expander("🌉 Bridge Clearance Calculator"):
     st.markdown("Calculate clearance based on the live water level.")
     boat_height = st.number_input("Boat Height Above Waterline (ft)", min_value=1.0, step=0.5, value=12.0)
-    
     if d['level'] != "N/A":
         browns_clearance_full = 53.0
         boling_clearance_full = 54.0
