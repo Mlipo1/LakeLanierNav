@@ -4,7 +4,7 @@ import folium
 from streamlit_folium import st_folium
 import requests
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Lanier Navigator", layout="centered", page_icon="⚓")
 
@@ -20,9 +20,7 @@ with col_title:
     st.markdown('<h1 class="main-title">⚓ Lanier Navigator</h1>', unsafe_allow_html=True)
 
 with col_controls:
-    # Removed the empty st.write("") that was creating a phantom dark box!
     st.markdown('<div class="control-panel">', unsafe_allow_html=True)
-    
     theme_lbl = "🌙 Dark Theme" if st.session_state.dark_mode else "☀️ Light Theme"
     new_theme = st.toggle(theme_lbl, value=st.session_state.dark_mode)
     if new_theme != st.session_state.dark_mode:
@@ -34,7 +32,6 @@ with col_controls:
     if new_unit != st.session_state.is_metric:
         st.session_state.is_metric = new_unit
         st.rerun()
-        
     st.markdown('</div>', unsafe_allow_html=True)
 
 # --- Theme Definitions ---
@@ -53,19 +50,12 @@ st.markdown(f"""
     .stApp {{ background-color: {theme['bg']} !important; }}
     
     /* Force Streamlit Labels and Text to use Theme Color */
-    h3, div[data-testid="stWidgetLabel"] p, p {{ 
-        color: {theme['text']} !important; 
-        font-weight: 600;
-    }}
+    h3, div[data-testid="stWidgetLabel"] p, p {{ color: {theme['text']} !important; font-weight: 600; }}
     
     /* Responsive Title */
     .main-title {{
-        color: {theme['text']} !important;
-        font-weight: 800;
-        font-size: clamp(1.8rem, 5vw, 2.5rem);
-        white-space: nowrap;
-        margin-bottom: 0px;
-        margin-top: 15px;
+        color: {theme['text']} !important; font-weight: 800; font-size: clamp(1.8rem, 5vw, 2.5rem);
+        white-space: nowrap; margin-bottom: 0px; margin-top: 15px;
     }}
     
     /* FIX: Force Toggle Track Visibility in Light Mode */
@@ -74,45 +64,23 @@ st.markdown(f"""
     
     /* Control Panel Box */
     .control-panel {{
-        background-color: {theme['card_bg']};
-        padding: 5px 15px;
-        border-radius: 12px;
-        border: 2px solid {theme['border']};
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
+        background-color: {theme['card_bg']}; padding: 5px 15px; border-radius: 12px;
+        border: 2px solid {theme['border']}; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px;
     }}
     
-    /* NEW: CSS Grid for 3 Top Metrics */
-    .metrics-grid {{
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 15px;
-        margin-bottom: 15px;
-    }}
-    
-    /* NEW: CSS Grid for Wind/Surface */
-    .wind-grid {{
-        display: grid;
-        grid-template-columns: 1fr 2fr;
-        gap: 15px;
-        margin-bottom: 25px;
-    }}
+    /* CSS Grids */
+    .metrics-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px; }}
+    .wind-grid {{ display: grid; grid-template-columns: 1fr 2fr; gap: 15px; margin-bottom: 25px; }}
     
     /* Beautiful Metric Cards */
     .metric-card {{
-        background: {theme['card_bg']};
-        border-radius: 15px;
-        padding: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-        text-align: center;
-        border: 1px solid {theme['border']};
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
+        background: {theme['card_bg']}; border-radius: 15px; padding: 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; border: 1px solid {theme['border']};
+        display: flex; flex-direction: column; justify-content: center;
     }}
     .metric-title {{ color: {theme['sub_text']}; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }}
     .metric-value {{ color: {theme['text']}; font-size: 2.2rem; font-weight: 900; line-height: 1.1; }}
-    .metric-sub {{ font-size: 0.8rem; font-weight: 600; margin-top: 5px; color: {theme['sub_text']}; }}
+    .metric-sub {{ font-size: 0.8rem; font-weight: 600; margin-top: 5px; color: {theme['sub_text']}; line-height: 1.3; }}
     .text-red {{ color: #e74c3c; }}
     .text-blue {{ color: #3498db; }}
     
@@ -122,66 +90,47 @@ st.markdown(f"""
     .chop-danger {{ color: #e74c3c; font-weight: 800; }}
     
     /* Responsive Flexbox Grid for Quick Info Pills */
-    .pill-container {{
-        display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 25px; margin-top: 5px;
-    }}
+    .pill-container {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 25px; margin-top: 5px; }}
     .info-pill {{
-        background: {theme['card_bg']}; border: 1px solid {theme['border']};
-        border-radius: 30px; padding: 8px 15px; color: {theme['text']};
-        font-size: 0.85rem; font-weight: 600; text-align: center;
+        background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 30px; padding: 8px 15px;
+        color: {theme['text']}; font-size: 0.85rem; font-weight: 600; text-align: center;
         flex: 1 1 calc(33% - 10px); min-width: 130px; box-shadow: 0 2px 5px rgba(0,0,0,0.02);
     }}
     
     /* Wind Container */
     .wind-container {{
-        background: linear-gradient(135deg, #2c3e50, #3498db);
-        border-radius: 20px; padding: 20px; color: white; text-align: center;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.15); height: 100%;
-        display: flex; flex-direction: column; justify-content: center; align-items: center;
+        background: linear-gradient(135deg, #2c3e50, #3498db); border-radius: 20px; padding: 20px; color: white;
+        text-align: center; box-shadow: 0 10px 20px rgba(0,0,0,0.15); height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center;
     }}
-    
     @keyframes wind-pulse {{
         0% {{ transform: scale(1) translateY(0px); opacity: 0.8; }}
         50% {{ transform: scale(1.1) translateY(-5px); opacity: 1; filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.8)); }}
         100% {{ transform: scale(1) translateY(0px); opacity: 0.8; }}
     }}
-    .animated-wind {{
-        display: inline-block; animation: wind-pulse 2s infinite ease-in-out; transition: transform 0.5s ease;
-    }}
-    
-    .wind-stats-flex {{
-        margin-top: 15px; display: flex; justify-content: space-around;
-    }}
+    .animated-wind {{ display: inline-block; animation: wind-pulse 2s infinite ease-in-out; transition: transform 0.5s ease; }}
+    .wind-stats-flex {{ margin-top: 15px; display: flex; justify-content: space-around; }}
 
-    /* MOBILE OVERRIDES (Forces the 1x2 Grid) */
+    /* MOBILE OVERRIDES */
     @media (max-width: 600px) {{
         .main-title {{ text-align: center; margin-bottom: 10px; }}
         .control-panel {{ padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 5px; }}
-        
-        /* Forces Top Metrics into 2 Columns */
         .metrics-grid {{ grid-template-columns: 1fr 1fr; gap: 10px; }}
-        /* Makes Air Temp span both columns cleanly at the bottom */
         .metrics-grid .metric-card:nth-child(3) {{ grid-column: span 2; }}
-        
-        /* Forces Wind & Surface into 2 Columns */
         .wind-grid {{ grid-template-columns: 1fr 1fr; gap: 10px; }}
-        
         .wind-container, .metric-card {{ padding: 15px 10px; }}
         .metric-value {{ font-size: 1.6rem !important; }}
-        
-        /* Stacks Sustained/Gusts vertically so they fit next to the Wind Direction */
         .wind-stats-flex {{ flex-direction: column; gap: 8px; margin-top: 10px; }}
     }}
     </style>
     """, unsafe_allow_html=True)
 
+# --- Data Fetching Functions ---
 @st.cache_data(ttl=300) 
 def fetch_data():
     data = {
         "level": "N/A", "air_temp": "N/A", "water_temp": 47, 
         "wind_mph": 0, "wind_dir": 0, "gusts": 0, "uv": 0, 
-        "sunrise": "N/A", "sunset": "N/A", "rain_chance": 0, "visibility": "N/A",
-        "pressure": "N/A", "clouds": 0
+        "sunrise": "N/A", "sunset": "N/A", "rain_chance": 0, "visibility": "N/A", "pressure": "N/A", "clouds": 0
     }
     
     try:
@@ -189,15 +138,12 @@ def fetch_data():
         usgs_res = requests.get(usgs_url, timeout=5).json()
         val = usgs_res['value']['timeSeries'][0]['values'][0]['value'][0]['value']
         data["level"] = float(val)
-    except Exception:
-        pass
+    except Exception: pass
 
     try:
         meteo_url = "https://api.open-meteo.com/v1/forecast?latitude=34.18&longitude=-83.98&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,visibility,surface_pressure,cloud_cover&daily=sunrise,sunset,precipitation_probability_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York"
         meteo_res = requests.get(meteo_url, timeout=5).json()
-        
-        current = meteo_res['current']
-        daily = meteo_res['daily']
+        current, daily = meteo_res['current'], meteo_res['daily']
         
         data["air_temp"] = current['temperature_2m']
         data["wind_mph"] = current['wind_speed_10m']
@@ -208,11 +154,9 @@ def fetch_data():
         data["pressure"] = current['surface_pressure']
         data["clouds"] = current['cloud_cover']
         data["rain_chance"] = daily['precipitation_probability_max'][0]
-        
         data["sunrise"] = datetime.strptime(daily['sunrise'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
         data["sunset"] = datetime.strptime(daily['sunset'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
-    except Exception:
-        pass
+    except Exception: pass
 
     try:
         lm_url = "https://lakemonster.com/lake/GA/Lake-Lanier-234"
@@ -221,39 +165,10 @@ def fetch_data():
         match = re.search(r'(\d{2,3})(?:\s*°|\s*&deg;|\s*deg)?\s*F', lm_res.text, re.IGNORECASE)
         if match:
             scraped_temp = int(match.group(1))
-            if 35 <= scraped_temp <= 95:
-                data["water_temp"] = scraped_temp
-    except Exception:
-        pass 
-
+            if 35 <= scraped_temp <= 95: data["water_temp"] = scraped_temp
+    except Exception: pass 
     return data
 
-def get_compass_dir(degrees):
-    dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
-    ix = int(round(degrees / (360. / len(dirs))))
-    return dirs[ix % len(dirs)]
-
-def calculate_chop(wind, gusts):
-    avg_force = (wind + gusts) / 2
-    if avg_force < 5:
-        return "Glassy", "chop-safe"
-    elif avg_force < 12:
-        return "Light Chop", "chop-safe"
-    elif avg_force < 20:
-        return "Choppy (Small Boat Caution)", "chop-warn"
-    else:
-        return "Rough / Whitecaps", "chop-danger"
-
-d = fetch_data()
-FULL_POOL_FT = 1071.0
-
-# -------------------------
-# ENHANCED FEATURES
-# -------------------------
-
-from datetime import timedelta
-
-# 24h Level Trend
 @st.cache_data(ttl=300)
 def fetch_level_trend():
     try:
@@ -262,86 +177,37 @@ def fetch_level_trend():
         url = f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400&parameterCd=00062&startDT={start.isoformat()}&endDT={end.isoformat()}"
         res = requests.get(url, timeout=5).json()
         values = res['value']['timeSeries'][0]['values'][0]['value']
-        first = float(values[0]['value'])
-        last = float(values[-1]['value'])
+        first, last = float(values[0]['value']), float(values[-1]['value'])
         return round(last - first, 2)
-    except:
-        return 0
+    except: return 0
 
-trend_24h = fetch_level_trend()
+def get_compass_dir(degrees):
+    dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
+    return dirs[int(round(degrees / (360. / len(dirs)))) % len(dirs)]
 
-# Wave Estimation
-def estimate_wave_height(wind):
-    return round(0.016 * (wind ** 1.5), 1)
+def calculate_chop(wind, gusts):
+    avg_force = (wind + gusts) / 2
+    if avg_force < 5: return "Glassy", "chop-safe"
+    elif avg_force < 12: return "Light Chop", "chop-safe"
+    elif avg_force < 20: return "Choppy (Small Boat Caution)", "chop-warn"
+    else: return "Rough / Whitecaps", "chop-danger"
 
-wave_height = estimate_wave_height(d["wind_mph"])
-
-# Safety Banner
-def get_safety_alert(d, wave):
-    alerts = []
-    if d["wind_mph"] >= 20 or d["gusts"] >= 30:
-        alerts.append("High Wind")
-    if d["rain_chance"] >= 70:
-        alerts.append("Heavy Rain")
-    if d["visibility"] != "N/A" and d["visibility"] < 2:
-        alerts.append("Low Visibility")
-    if wave >= 3:
-        alerts.append("High Waves")
-    return alerts
-
-alerts = get_safety_alert(d, wave_height)
-
-if alerts:
-    st.markdown(f"""
-        <div style="
-            background:#e74c3c;
-            padding:12px;
-            border-radius:12px;
-            color:white;
-            font-weight:700;
-            text-align:center;
-            margin-bottom:15px;">
-            ⚠️ {" | ".join(alerts)}
-        </div>
-    """, unsafe_allow_html=True)
-
-# Boating Score
 def calculate_boat_score(d, wave):
-    score = 100
-    score -= d["wind_mph"] * 1.5
-    score -= d["rain_chance"] * 0.5
-    score -= wave * 8
+    score = 100 - (d["wind_mph"] * 1.5) - (d["rain_chance"] * 0.5) - (wave * 8)
     return max(0, min(100, round(score)))
 
-boat_score = calculate_boat_score(d, wave_height)
+def get_safety_alert(d, wave):
+    alerts = []
+    if d["wind_mph"] >= 20 or d["gusts"] >= 30: alerts.append("High Wind")
+    if d["rain_chance"] >= 70: alerts.append("Heavy Rain")
+    if d["visibility"] != "N/A" and d["visibility"] < 2: alerts.append("Low Visibility")
+    if wave >= 3: alerts.append("High Waves")
+    return alerts
 
-if boat_score >= 85:
-    score_label = "🟢 Excellent"
-elif boat_score >= 65:
-    score_label = "🟡 Good"
-elif boat_score >= 40:
-    score_label = "🟠 Marginal"
-else:
-    score_label = "🔴 Stay Home"
-
-st.markdown(f"""
-<div class="metric-card" style="margin-bottom:20px;">
-    <div class="metric-title">Today's Boating Score</div>
-    <div class="metric-value">{boat_score}/100</div>
-    <div class="metric-sub">{score_label}</div>
-</div>
-""", unsafe_allow_html=True)
-
-# Boat Type
-boat_type = st.selectbox(
-    "Boat Type",
-    ["Pontoon","Ski Boat","Fishing Boat","Jet Ski"]
-)
-
-if boat_type == "Jet Ski":
-    wave_height *= 1.2
-elif boat_type == "Pontoon":
-    wave_height *= 0.8
+# --- Execute Data Logic ---
+d = fetch_data()
+trend_24h = fetch_level_trend()
+FULL_POOL_FT = 1071.0
 
 if st.session_state.is_metric:
     unit_dist, unit_temp, unit_speed, unit_vis, unit_press = "m", "°C", "km/h", "km", "hPa"
@@ -366,51 +232,38 @@ else:
 
 direction_text = get_compass_dir(d['wind_dir'])
 chop_text, chop_class = calculate_chop(d['wind_mph'], d['gusts'])
-trend_arrow = "↑" if trend_24h > 0 else "↓"
-trend_color = "#2ecc71" if trend_24h > 0 else "#e74c3c"
+wind_rotation = (d['wind_dir'] + 180) % 360
+
+# --- Top Level HTML Formatting ---
+trend_arrow = "↑" if trend_24h >= 0 else "↓"
+trend_color = "#2ecc71" if trend_24h >= 0 else "#e74c3c"
 trend_html = f"<span style='color:{trend_color}; font-weight:700;'>{trend_arrow} {abs(trend_24h)} ft (24h)</span>"
 
 level_diff_html = f"{trend_html}<br><span class='text-red'>↓ {disp_pool_diff}{unit_dist}</span>" if disp_level != "N/A" else ""
 level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
-wind_rotation = (d['wind_dir'] + 180) % 360
-
-# --- UI Rendering (Now Using Pure HTML/CSS Grid) ---
-
-# 1. Top Metrics (Lake Level, Water Temp, Air Temp)
-# --- Water Temp Color Logic (MUST be above HTML) ---
 temp_color = "#3498db" if disp_water_temp < 60 else "#f39c12" if disp_water_temp < 80 else "#e74c3c"
 
-# --- Top Metrics HTML ---
-top_html = f"""
+st.markdown(f"""
 <div class="metrics-grid">
     <div class="metric-card">
         <div class="metric-title">Lake Level</div>
         <div class="metric-value">{level_val}</div>
         <div class="metric-sub">{level_diff_html} (Full)</div>
     </div>
-
     <div class="metric-card">
         <div class="metric-title">Water Temp</div>
-        <div class="metric-value" style="color:{temp_color};">
-            {disp_water_temp}{unit_temp}
-        </div>
+        <div class="metric-value" style="color:{temp_color};">{disp_water_temp}{unit_temp}</div>
         <div class="metric-sub">Surface</div>
     </div>
-
     <div class="metric-card">
         <div class="metric-title">Air Temp</div>
-        <div class="metric-value">
-            {disp_air_temp}{unit_temp}
-        </div>
+        <div class="metric-value">{disp_air_temp}{unit_temp}</div>
         <div class="metric-sub">Flowery Branch</div>
     </div>
 </div>
-"""
+""", unsafe_allow_html=True)
 
-st.markdown(top_html, unsafe_allow_html=True)
-
-# 2. Quick Boating Info (Flexbox Pills)
-pill_html = f"""
+st.markdown(f"""
 <div class="pill-container">
     <div class="info-pill">🌅 Sun: {d["sunrise"]} / {d["sunset"]}</div>
     <div class="info-pill">🌧️ Rain: {d["rain_chance"]}%</div>
@@ -419,12 +272,51 @@ pill_html = f"""
     <div class="info-pill">☁️ Clouds: {d["clouds"]}%</div>
     <div class="info-pill">☀️ UV: {round(d["uv"],1)}</div>
 </div>
-"""
-st.markdown(pill_html, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
-# 3. Wind & Surface Simulation
+# --- Boating Conditions Section ---
+st.markdown("### 🚦 Boating Conditions & Safety")
+bc1, bc2 = st.columns([1, 1])
+with bc1:
+    boat_type = st.selectbox("Select Vessel Type", ["Pontoon", "Ski Boat", "Fishing Boat", "Jet Ski"])
+
+# Dynamically calculate waves based on vessel
+wave_base = 0.016 * (d["wind_mph"] ** 1.5)
+if boat_type == "Jet Ski": wave_height = wave_base * 1.2
+elif boat_type == "Pontoon": wave_height = wave_base * 0.8
+else: wave_height = wave_base
+wave_height = round(wave_height, 1)
+
+disp_wave = round(wave_height * 0.3048, 1) if st.session_state.is_metric else wave_height
+unit_wave = "m" if st.session_state.is_metric else "ft"
+
+boat_score = calculate_boat_score(d, wave_height)
+alerts = get_safety_alert(d, wave_height)
+
+with bc2:
+    if boat_score >= 85: score_label, score_color = "🟢 Excellent", "#2ecc71"
+    elif boat_score >= 65: score_label, score_color = "🟡 Good", "#f1c40f"
+    elif boat_score >= 40: score_label, score_color = "🟠 Marginal", "#e67e22"
+    else: score_label, score_color = "🔴 Stay Home", "#e74c3c"
+    
+    st.markdown(f"""
+    <div class="metric-card" style="padding: 12px; margin-bottom: 0px;">
+        <div class="metric-title" style="margin-bottom: 2px;">Boating Score</div>
+        <div style="font-size: 1.6rem; font-weight: 900; color: {score_color}; line-height: 1;">{boat_score}/100</div>
+        <div class="metric-sub">{score_label}</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+if alerts:
+    st.markdown(f"""
+    <div style="background:#e74c3c; padding:12px; border-radius:12px; color:white; font-weight:700; text-align:center; margin-top: 15px; margin-bottom:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        ⚠️ {" | ".join(alerts)}
+    </div>
+    """, unsafe_allow_html=True)
+
+# --- Wind & Surface Simulation ---
 st.markdown("### 💨 Live Wind & Surface Simulation")
-wind_html = f"""
+st.markdown(f"""
 <div class="wind-grid">
     <div class="wind-container">
         <div style="font-size: 0.8rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; opacity: 0.9;">WIND DIR</div>
@@ -440,7 +332,7 @@ wind_html = f"""
     <div class="metric-card" style="margin-bottom: 0;">
         <div class="metric-title">Surface Condition</div>
         <div class="metric-value {chop_class}" style="font-size: 1.15rem; margin-top: 5px;">{chop_text}</div>
-        <div class="metric-sub">🌊 Est Waves: {wave_height} ft</div>
+        <div class="metric-sub">🌊 Est Waves: {disp_wave} {unit_wave}</div>
         <div class="wind-stats-flex">
             <div>
                 <div class="metric-title" style="font-size: 0.75rem;">Sustained</div>
@@ -453,8 +345,11 @@ wind_html = f"""
         </div>
     </div>
 </div>
-"""
-st.markdown(wind_html, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
+
+# --- Map ---
+st.markdown("### 📍 Dock & Dine GPS")
+category = st.multiselect("Show on Map", ["Restaurant","Fuel"], default=["Restaurant","Fuel"])
 
 places = [
     {"name":"Pig Tales (Aqualand)","lat":34.148,"lon":-83.991,"type":"Restaurant"},
@@ -465,24 +360,16 @@ places = [
     {"name":"Holiday Marina (Gas)","lat":34.173,"lon":-84.017,"type":"Fuel"}
 ]
 
-category = st.multiselect(
-    "Show on Map",
-    ["Restaurant","Fuel"],
-    default=["Restaurant","Fuel"]
-)
-
 m = folium.Map(location=[34.18, -83.98], zoom_start=11, tiles=theme['map_tiles'])
-
 for p in places:
     if p["type"] in category:
         color = "blue" if p["type"]=="Restaurant" else "green"
         folium.Marker(
-            [p['lat'], p['lon']],
-            popup=f"{p['name']} ({p['type']})",
-            icon=folium.Icon(color=color, icon='anchor', prefix='fa')
+            [p['lat'], p['lon']], popup=f"{p['name']} ({p['type']})", icon=folium.Icon(color=color, icon='anchor', prefix='fa')
         ).add_to(m)
-
 st_folium(m, width="100%", height=400)
+
+# --- Pre-Departure & Utilities ---
 st.markdown("---")
 with st.expander("✅ Pre-Departure Checklist (Don't sink the boat!)"):
     st.checkbox("Hull drain plug securely installed")
@@ -491,10 +378,14 @@ with st.expander("✅ Pre-Departure Checklist (Don't sink the boat!)"):
     st.checkbox("Life jackets counted & readily accessible")
     st.checkbox("Anchor and dock lines ready")
     st.checkbox("Sufficient fuel for the trip")
+
 with st.expander("⛽ Fuel Range Estimator"):
     fuel = st.number_input("Fuel Onboard (Gallons)", min_value=0.0, step=1.0)
     mpg = st.number_input("Boat MPG", min_value=0.1, step=0.1)
-
     if fuel and mpg:
         safe_range = fuel * mpg * 0.7
-        st.success(f"Safe Range (30% reserve): {round(safe_range,1)} miles")
+        # Convert range if metric is active
+        if st.session_state.is_metric:
+            st.success(f"Safe Range (30% reserve): {round(safe_range * 1.60934, 1)} kilometers")
+        else:
+            st.success(f"Safe Range (30% reserve): {round(safe_range, 1)} miles")
