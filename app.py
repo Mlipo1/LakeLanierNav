@@ -12,19 +12,22 @@ st.set_page_config(page_title="Lanier Navigator", layout="centered", page_icon="
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True 
 
-col_title, col_toggle = st.columns([3, 1])
+col_title, col_toggle = st.columns([3, 1.2])
 with col_title:
     st.markdown('<h1 class="main-title">⚓ Lanier Navigator</h1>', unsafe_allow_html=True)
 with col_toggle:
     st.write("") 
-    st.session_state.dark_mode = st.toggle("🌙 Dark Mode", value=st.session_state.dark_mode)
+    # Wrap toggle in a custom div class via CSS later to fix visibility
+    st.markdown('<div class="toggle-wrapper">', unsafe_allow_html=True)
+    st.session_state.dark_mode = st.toggle("🌙 Theme", value=st.session_state.dark_mode)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 theme = {
-    "bg": "#0e1117" if st.session_state.dark_mode else "#f0f2f6",
+    "bg": "#0e1117" if st.session_state.dark_mode else "#f8f9fa",
     "card_bg": "#1e2130" if st.session_state.dark_mode else "#ffffff",
     "text": "#fafafa" if st.session_state.dark_mode else "#2c3e50",
     "sub_text": "#a0aab5" if st.session_state.dark_mode else "#6c757d",
-    "border": "#333847" if st.session_state.dark_mode else "#e9ecef",
+    "border": "#333847" if st.session_state.dark_mode else "#dee2e6",
     "map_tiles": "CartoDB dark_matter" if st.session_state.dark_mode else "CartoDB positron"
 }
 
@@ -38,8 +41,14 @@ st.markdown(f"""
         color: {theme['text']} !important; 
     }}
     
-    /* Main Title */
-    .main-title {{ font-weight: 800; margin-bottom: 20px; }}
+    /* FIX: Toggle Container for Light Mode Visibility */
+    div[data-testid="stToggle"] {{
+        background-color: {theme['card_bg']};
+        padding: 8px 15px;
+        border-radius: 25px;
+        border: 1px solid {theme['border']};
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }}
     
     /* Beautiful Metric Cards */
     .metric-card {{
@@ -75,9 +84,9 @@ st.markdown(f"""
         background: {theme['card_bg']};
         border: 1px solid {theme['border']};
         border-radius: 30px;
-        padding: 8px 15px;
+        padding: 8px 10px;
         color: {theme['text']};
-        font-size: 0.9rem;
+        font-size: 0.85rem;
         font-weight: 600;
         text-align: center;
         display: inline-block;
@@ -114,9 +123,10 @@ st.markdown(f"""
 @st.cache_data(ttl=300) 
 def fetch_data():
     data = {
-        "level": "N/A", "air_temp": "N/A", "water_temp": "N/A",
+        "level": "N/A", "air_temp": "N/A", "water_temp": 47, # Fallback temp
         "wind_mph": 0, "wind_dir": 0, "gusts": 0, "uv": 0, 
-        "sunrise": "N/A", "sunset": "N/A", "rain_chance": 0, "visibility": "N/A"
+        "sunrise": "N/A", "sunset": "N/A", "rain_chance": 0, "visibility": "N/A",
+        "pressure": "N/A", "clouds": 0
     }
     
     try:
@@ -128,8 +138,8 @@ def fetch_data():
         pass
 
     try:
-        # Added visibility, sunrise, sunset, and precipitation probability
-        meteo_url = "https://api.open-meteo.com/v1/forecast?latitude=34.18&longitude=-83.98&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,visibility&daily=sunrise,sunset,precipitation_probability_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York"
+        # Added surface_pressure and cloud_cover
+        meteo_url = "https://api.open-meteo.com/v1/forecast?latitude=34.18&longitude=-83.98&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,visibility,surface_pressure,cloud_cover&daily=sunrise,sunset,precipitation_probability_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York"
         meteo_res = requests.get(meteo_url, timeout=5).json()
         
         current = meteo_res['current']
@@ -140,27 +150,26 @@ def fetch_data():
         data["wind_dir"] = current['wind_direction_10m']
         data["gusts"] = round(current['wind_gusts_10m'], 1)
         data["uv"] = round(current['uv_index'], 1)
-        
-        # Visibility comes in meters, convert to miles
         data["visibility"] = round(current['visibility'] / 1609.34, 1)
+        data["pressure"] = round(current['surface_pressure'], 1)
+        data["clouds"] = current['cloud_cover']
         data["rain_chance"] = daily['precipitation_probability_max'][0]
         
-        # Parse Times
         data["sunrise"] = datetime.strptime(daily['sunrise'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
         data["sunset"] = datetime.strptime(daily['sunset'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
     except Exception:
         pass
 
     try:
-        # Broadened regex slightly to help catch water temp updates
         lm_url = "https://lakemonster.com/lake/GA/Lake-Lanier-234"
-        headers = {'User-Agent': 'Mozilla/5.0'}
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
         lm_res = requests.get(lm_url, headers=headers, timeout=5)
-        match = re.search(r'(\d{2,3})(?:°|&deg;)F?\s*(?:water|temp)', lm_res.text, re.IGNORECASE)
+        # More robust regex to find numbers near F or temp
+        match = re.search(r'(\d{2,3})(?:\s*°|\s*&deg;|\s*deg)?\s*F', lm_res.text, re.IGNORECASE)
         if match:
             data["water_temp"] = int(match.group(1))
     except Exception:
-        pass
+        pass # Will fall back to the default 47
 
     return data
 
@@ -200,12 +209,16 @@ with c2:
 with c3:
     st.markdown(f'<div class="metric-card"><div class="metric-title">Air Temp</div><div class="metric-value">{d["air_temp"]}°</div><div class="metric-sub">Flowery Branch</div></div>', unsafe_allow_html=True)
 
-# Row 1.5: Quick Boating Info (4 Pills)
-qc1, qc2, qc3, qc4 = st.columns(4)
-with qc1: st.markdown(f'<div class="info-pill">🌅 Sun: <strong>{d["sunrise"]}</strong></div>', unsafe_allow_html=True)
-with qc2: st.markdown(f'<div class="info-pill">🌙 Set: <strong>{d["sunset"]}</strong></div>', unsafe_allow_html=True)
-with qc3: st.markdown(f'<div class="info-pill">🌧️ Rain: <strong>{d["rain_chance"]}%</strong></div>', unsafe_allow_html=True)
-with qc4: st.markdown(f'<div class="info-pill">🌫️ Vis: <strong>{d["visibility"]} mi</strong></div>', unsafe_allow_html=True)
+# Row 1.5: Quick Boating Info (6 Pills now!)
+qc1, qc2, qc3 = st.columns(3)
+with qc1: st.markdown(f'<div class="info-pill">🌅 Sun: {d["sunrise"]} / {d["sunset"]}</div>', unsafe_allow_html=True)
+with qc2: st.markdown(f'<div class="info-pill">🌧️ Rain Chance: {d["rain_chance"]}%</div>', unsafe_allow_html=True)
+with qc3: st.markdown(f'<div class="info-pill">🌫️ Vis: {d["visibility"]} mi</div>', unsafe_allow_html=True)
+
+qc4, qc5, qc6 = st.columns(3)
+with qc4: st.markdown(f'<div class="info-pill">🌡️ Pressure: {d["pressure"]} hPa</div>', unsafe_allow_html=True)
+with qc5: st.markdown(f'<div class="info-pill">☁️ Clouds: {d["clouds"]}%</div>', unsafe_allow_html=True)
+with qc6: st.markdown(f'<div class="info-pill">☀️ UV Index: {d["uv"]}</div>', unsafe_allow_html=True)
 
 # Row 2: Animated Wind & Surface Conditions
 st.markdown("### 💨 Live Wind & Surface Simulation")
@@ -258,5 +271,14 @@ restaurants = [
 m = folium.Map(location=[34.18, -83.98], zoom_start=11, tiles=theme['map_tiles'])
 for res in restaurants:
     folium.Marker([res['lat'], res['lon']], popup=res['name'], icon=folium.Icon(color='blue', icon='anchor', prefix='fa')).add_to(m)
-
 st_folium(m, width="100%", height=400)
+
+# Row 4: Pre-Departure Checklist
+st.markdown("---")
+with st.expander("✅ Pre-Departure Checklist (Don't sink the boat!)"):
+    st.checkbox("Hull drain plug securely installed")
+    st.checkbox("Battery switch set to ON (or ALL/1+2)")
+    st.checkbox("Engine blower run for 4 minutes before starting")
+    st.checkbox("Life jackets counted & readily accessible")
+    st.checkbox("Anchor and dock lines ready")
+    st.checkbox("Sufficient fuel for the trip")
