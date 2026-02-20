@@ -123,6 +123,18 @@ st.markdown(f"""
         100% {{ transform: translateX(-50%) scaleY(var(--wave-scale, 1)); }}
     }}
 
+    /* Collapsible Alert System CSS */
+    .alert-expander {{
+        background: #e74c3c; border-radius: 12px; color: white;
+        margin-top: 15px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }}
+    .alert-summary {{
+        padding: 15px; font-weight: 800; cursor: pointer; display: flex;
+        align-items: center; justify-content: space-between; list-style: none;
+    }}
+    .alert-summary::-webkit-details-marker {{ display: none; }}
+    .alert-content {{ padding: 0 15px 15px 15px; font-weight: 600; font-size: 0.95rem; line-height: 1.4; }}
+
     @media (max-width: 600px) {{
         .main-title {{ text-align: center; margin-bottom: 10px; }}
         .metrics-grid {{ grid-template-columns: 1fr 1fr; gap: 10px; }}
@@ -201,22 +213,40 @@ def calculate_chop(wind, gusts):
     elif avg_force < 20: return "Choppy (Small Boat Caution)", "#fde047" 
     else: return "Rough / Whitecaps", "#fca5a5" 
 
+FULL_POOL_FT = 1071.0
+
+# UPDATED: Score now actively deducts points for low water levels
 def calculate_boat_score(d, wave):
     score = 100 - (d["wind_mph"] * 1.5) - (d["rain_chance"] * 0.5) - (wave * 8)
+    if d['level'] != "N/A":
+        level_diff = FULL_POOL_FT - d['level']
+        if level_diff > 0:
+            # Deduct 3 points for every foot the lake is down
+            score -= (level_diff * 3)
     return max(0, min(100, round(score)))
 
+# UPDATED: Dynamic text alerts including severe water level warnings
 def get_safety_alert(d, wave):
     alerts = []
-    if d["wind_mph"] >= 20 or d["gusts"] >= 30: alerts.append("High Wind")
-    if d["rain_chance"] >= 70: alerts.append("Heavy Rain")
-    if d["visibility"] != "N/A" and d["visibility"] < 2: alerts.append("Low Visibility")
-    if wave >= 3: alerts.append("High Waves")
+    if d["wind_mph"] >= 20 or d["gusts"] >= 30: 
+        alerts.append("🌬️ <strong>High Wind Advisory:</strong> Dangerous gusts detected. Small craft caution.")
+    if d["rain_chance"] >= 70: 
+        alerts.append("⛈️ <strong>Heavy Rain:</strong> High probability of storms/rain today.")
+    if d["visibility"] != "N/A" and d["visibility"] < 2: 
+        alerts.append("🌫️ <strong>Low Visibility:</strong> Fog or haze is severely limiting sight distance.")
+    if wave >= 3: 
+        alerts.append("🌊 <strong>Rough Chop:</strong> Estimated wave heights exceed 3 feet.")
+    
+    if d['level'] != "N/A":
+        if d['level'] < 1066:
+            alerts.append("📉 <strong>Low Water Hazard:</strong> Lake is >5ft down. Watch for newly exposed shoals. Fixed docks and ramps may be unusable.")
+        elif d['level'] > 1072:
+            alerts.append("🪵 <strong>High Water Warning:</strong> Lake is above full pool. Watch for floating debris and submerged dock structures.")
     return alerts
 
 # --- Execute Data Logic ---
 d = fetch_data()
 trend_24h = fetch_level_trend()
-FULL_POOL_FT = 1071.0
 wave_height = round(0.016 * (d["wind_mph"] ** 1.5), 1)
 
 if st.session_state.is_metric:
@@ -288,6 +318,7 @@ st.markdown(f"""
 
 # --- Boating Score & Safety Banner ---
 st.markdown("### 🚦 Boating Conditions & Safety")
+
 boat_score = calculate_boat_score(d, wave_height)
 alerts = get_safety_alert(d, wave_height)
 
@@ -300,15 +331,24 @@ st.markdown(f"""
 <div class="metric-card" style="padding: 15px; margin-bottom: 15px;">
     <div class="metric-title" style="margin-bottom: 5px;">Overall Boating Score</div>
     <div style="font-size: 2.5rem; font-weight: 900; color: {score_color}; line-height: 1; margin: 10px 0;">{boat_score}<span style="font-size: 1.2rem; color: {theme['sub_text']}">/100</span></div>
-    <div class="metric-sub" style="font-size: 1rem;">{score_label} (Based on wind, rain & waves)</div>
+    <div class="metric-sub" style="font-size: 1rem;">{score_label} (Based on level, wind, rain & waves)</div>
 </div>
 """, unsafe_allow_html=True)
 
+# NEW: Collapsible Interactive Alert Banner
 if alerts:
+    alert_items = "".join([f"<div style='margin-bottom: 8px;'>{a}</div>" for a in alerts])
+    alert_count = len(alerts)
     st.markdown(f"""
-    <div style="background:#e74c3c; padding:12px; border-radius:12px; color:white; font-weight:700; text-align:center; margin-top: 15px; margin-bottom:20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
-        ⚠️ {" | ".join(alerts)}
-    </div>
+    <details class="alert-expander" open>
+        <summary class="alert-summary">
+            <span>⚠️ IMPORTANT SAFETY ALERTS ({alert_count})</span>
+            <span style="font-size: 0.8rem; opacity: 0.9; text-transform: uppercase;">Tap to toggle</span>
+        </summary>
+        <div class="alert-content">
+            {alert_items}
+        </div>
+    </details>
     """, unsafe_allow_html=True)
 
 # --- Live Camera & Wave Simulator Section ---
@@ -383,77 +423,6 @@ st.markdown(wind_html, unsafe_allow_html=True)
 # MAP & NAVIGATION DASHBOARD
 # ---------------------------------------------------------
 st.markdown("### 📍 Dock & Dine Navigation")
-
-# ACCURATE GPS Coordinates & Metadata
-places = [
-    {
-        "name": "Pig Tales (Aqualand)",
-        "lat": 34.1805, "lon": -83.9515,
-        "type": "Dining",
-        "hours": "Daily 11am - 10pm (Seasonal)",
-        "web": "https://www.pigtaleslakelanier.com/"
-    },
-    {
-        "name": "Fish Tales (Hideaway)",
-        "lat": 34.1833, "lon": -83.9392,
-        "type": "Dining",
-        "hours": "Daily 11am - 10pm (Seasonal)",
-        "web": "https://www.fishtaleslakelanier.com/"
-    },
-    {
-        "name": "Pelican Pete's",
-        "lat": 34.2432, "lon": -83.9617,
-        "type": "Dining",
-        "hours": "Fri-Sun 11am - 9pm (Seasonal)",
-        "web": "https://www.pelicanpetes.com/"
-    },
-    {
-        "name": "Twisted Oar",
-        "lat": 34.1692, "lon": -84.0047,
-        "type": "Dining",
-        "hours": "Daily 11am - 10pm",
-        "web": "https://www.twistedoar.com/"
-    },
-    {
-        "name": "LandShark (Margaritaville)",
-        "lat": 34.1852, "lon": -84.0150,
-        "type": "Dining",
-        "hours": "Daily 11am - 10pm",
-        "web": "https://www.margaritavilleresorts.com/"
-    },
-    {
-        "name": "Holiday Marina (Gas)",
-        "lat": 34.1712, "lon": -84.0047,
-        "type": "Fuel",
-        "hours": "Daily 9am - 6pm",
-        "web": "https://holidaylakelanier.com/"
-    },
-    {
-        "name": "Sunset Cove (Gas)",
-        "lat": 34.1830, "lon": -84.0180,
-        "type": "Fuel",
-        "hours": "Daily 9am - 6pm",
-        "web": "https://www.margaritavilleresorts.com/"
-    },
-    {
-        "name": "Aqualand Marina",
-        "lat": 34.1793, "lon": -83.9538,
-        "type": "Marina",
-        "hours": "Daily 9am - 5pm",
-        "web": "https://shmarinas.com/locations/safe-harbor-aqualand/"
-    },
-    {
-        "name": "Port Royale Marina",
-        "lat": 34.2450, "lon": -83.9620,
-        "type": "Marina",
-        "hours": "Daily 8am - 5pm",
-        "web": "https://www.bestinboating.com/port_royale/"
-    }
-]
-
-places_json = json.dumps(places)
-map_tile_url = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" if st.session_state.dark_mode else "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-js_metric_flag = "true" if st.session_state.is_metric else "false"
 
 nav_html = f"""
 <!DOCTYPE html>
@@ -691,7 +660,7 @@ nav_html = f"""
                 div.onclick = function() {{
                     document.getElementById('poi-search').value = "";
                     resultsDiv.style.display = "none";
-                    map.setView([m.lat, m.lon], 14, {{animate: true}}); // Auto zoom to pin
+                    map.setView([m.lat, m.lon], 14, {{animate: true}}); 
                     startNav(idx);
                 }};
                 resultsDiv.appendChild(div);
