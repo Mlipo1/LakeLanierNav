@@ -8,31 +8,44 @@ from datetime import datetime
 
 st.set_page_config(page_title="Lanier Navigator", layout="centered", page_icon="⚓")
 
-# --- State Management ---
+# --- Bulletproof State Management ---
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True 
 if "is_metric" not in st.session_state:
     st.session_state.is_metric = False
 
 # --- Top Header & Controls ---
-col_title, col_controls = st.columns([2.5, 1.5])
+col_title, col_controls = st.columns([2.2, 1.8])
 with col_title:
     st.markdown('<h1 class="main-title">⚓ Lanier Navigator</h1>', unsafe_allow_html=True)
+
 with col_controls:
     st.write("") # Spacing
-    # Placing toggles inside a container ensures they never blend into the background
     st.markdown('<div class="control-panel">', unsafe_allow_html=True)
-    st.session_state.dark_mode = st.toggle("🌙 Dark Theme", value=st.session_state.dark_mode)
-    st.session_state.is_metric = st.toggle("📏 Metric Units", value=st.session_state.is_metric)
+    
+    # Toggle 1: Theme (with dynamic text and instant rerun)
+    theme_lbl = "🌙 Dark Theme" if st.session_state.dark_mode else "☀️ Light Theme"
+    new_theme = st.toggle(theme_lbl, value=st.session_state.dark_mode)
+    if new_theme != st.session_state.dark_mode:
+        st.session_state.dark_mode = new_theme
+        st.rerun()
+        
+    # Toggle 2: Units (with dynamic text and instant rerun)
+    unit_lbl = "📏 Metric Units" if st.session_state.is_metric else "📏 Imperial Units"
+    new_unit = st.toggle(unit_lbl, value=st.session_state.is_metric)
+    if new_unit != st.session_state.is_metric:
+        st.session_state.is_metric = new_unit
+        st.rerun()
+        
     st.markdown('</div>', unsafe_allow_html=True)
 
 # --- Theme Definitions ---
 theme = {
-    "bg": "#0e1117" if st.session_state.dark_mode else "#f8f9fa",
+    "bg": "#0e1117" if st.session_state.dark_mode else "#f0f2f6",
     "card_bg": "#1e2130" if st.session_state.dark_mode else "#ffffff",
     "text": "#fafafa" if st.session_state.dark_mode else "#2c3e50",
     "sub_text": "#a0aab5" if st.session_state.dark_mode else "#6c757d",
-    "border": "#333847" if st.session_state.dark_mode else "#cccccc",
+    "border": "#333847" if st.session_state.dark_mode else "#d1d8e0",
     "map_tiles": "CartoDB dark_matter" if st.session_state.dark_mode else "CartoDB positron"
 }
 
@@ -42,14 +55,23 @@ st.markdown(f"""
     .stApp {{ background-color: {theme['bg']} !important; }}
     
     /* Force Streamlit Labels and Text to use Theme Color */
-    .main-title, h3, div[data-testid="stWidgetLabel"] p, .st-toggle p, p {{ 
+    .main-title, h3, div[data-testid="stWidgetLabel"] p, p {{ 
         color: {theme['text']} !important; 
+        font-weight: 600;
     }}
     
-    /* Control Panel for Toggles (Fixes Light Mode Visibility) */
+    /* FIX: Force Toggle Track Visibility in Light Mode */
+    div[data-testid="stToggle"] label div[role="switch"] {{
+        background-color: #a0aab5 !important;
+    }}
+    div[data-testid="stToggle"] label div[role="switch"][aria-checked="true"] {{
+        background-color: #3498db !important;
+    }}
+    
+    /* Control Panel Box */
     .control-panel {{
         background-color: {theme['card_bg']};
-        padding: 10px 15px;
+        padding: 5px 15px 15px 15px;
         border-radius: 12px;
         border: 2px solid {theme['border']};
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -65,16 +87,8 @@ st.markdown(f"""
         text-align: center;
         margin-bottom: 15px;
         border: 1px solid {theme['border']};
-        transition: all 0.3s ease;
     }}
-    .metric-title {{
-        color: {theme['sub_text']};
-        font-size: 0.95rem;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        margin-bottom: 8px;
-    }}
+    .metric-title {{ color: {theme['sub_text']}; font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }}
     .metric-value {{ color: {theme['text']}; font-size: 2.2rem; font-weight: 900; }}
     .metric-sub {{ font-size: 0.9rem; font-weight: 600; margin-top: 5px; color: {theme['sub_text']}; }}
     .text-red {{ color: #e74c3c; }}
@@ -87,48 +101,24 @@ st.markdown(f"""
     
     /* Small Info Pills */
     .info-pill {{
-        background: {theme['card_bg']};
-        border: 1px solid {theme['border']};
-        border-radius: 30px;
-        padding: 8px 10px;
-        color: {theme['text']};
-        font-size: 0.85rem;
-        font-weight: 600;
-        text-align: center;
-        display: inline-block;
-        width: 100%;
-        margin-bottom: 10px;
-        white-space: nowrap;
+        background: {theme['card_bg']}; border: 1px solid {theme['border']};
+        border-radius: 30px; padding: 8px 10px; color: {theme['text']};
+        font-size: 0.85rem; font-weight: 600; text-align: center;
+        display: inline-block; width: 100%; margin-bottom: 10px; white-space: nowrap;
     }}
     
-    /* Wind Animation */
-    @keyframes wind-pulse {{
-        0% {{ transform: scale(1) translateY(0px); opacity: 0.8; }}
-        50% {{ transform: scale(1.1) translateY(-5px); opacity: 1; filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.8)); }}
-        100% {{ transform: scale(1) translateY(0px); opacity: 0.8; }}
-    }}
-    .animated-wind {{
-        display: inline-block;
-        animation: wind-pulse 2s infinite ease-in-out;
-        transition: transform 0.5s ease;
-    }}
-    
+    /* Wind Container */
     .wind-container {{
         background: linear-gradient(135deg, #2c3e50, #3498db);
-        border-radius: 20px;
-        padding: 25px;
-        color: white;
-        text-align: center;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.15);
-        margin-bottom: 20px;
-        height: 100%;
+        border-radius: 20px; padding: 25px; color: white; text-align: center;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.15); margin-bottom: 20px; height: 100%;
     }}
     </style>
     """, unsafe_allow_html=True)
 
 @st.cache_data(ttl=300) 
 def fetch_data():
-    # We fetch base data in Imperial/Standard, then convert later if needed
+    # Base fallback is 47 (Average Lanier temp in Feb)
     data = {
         "level": "N/A", "air_temp": "N/A", "water_temp": 47, 
         "wind_mph": 0, "wind_dir": 0, "gusts": 0, "uv": 0, 
@@ -157,7 +147,7 @@ def fetch_data():
         data["gusts"] = current['wind_gusts_10m']
         data["uv"] = current['uv_index']
         data["visibility"] = current['visibility'] / 1609.34 # meters to miles
-        data["pressure"] = current['surface_pressure'] # Open-meteo defaults to hPa
+        data["pressure"] = current['surface_pressure']
         data["clouds"] = current['cloud_cover']
         data["rain_chance"] = daily['precipitation_probability_max'][0]
         
@@ -166,13 +156,18 @@ def fetch_data():
     except Exception:
         pass
 
+    # Safe Water Scraper
     try:
         lm_url = "https://lakemonster.com/lake/GA/Lake-Lanier-234"
         headers = {'User-Agent': 'Mozilla/5.0'}
         lm_res = requests.get(lm_url, headers=headers, timeout=5)
+        # Search for exact formatting to prevent grabbing random digits
         match = re.search(r'(\d{2,3})(?:\s*°|\s*&deg;|\s*deg)?\s*F', lm_res.text, re.IGNORECASE)
         if match:
-            data["water_temp"] = int(match.group(1))
+            scraped_temp = int(match.group(1))
+            # SANITY CHECK: Water must be between 35F and 95F
+            if 35 <= scraped_temp <= 95:
+                data["water_temp"] = scraped_temp
     except Exception:
         pass 
 
@@ -206,7 +201,6 @@ if st.session_state.is_metric:
     unit_vis = "km"
     unit_press = "hPa"
     
-    # Math logic
     disp_level = round(d['level'] * 0.3048, 2) if d['level'] != "N/A" else "N/A"
     disp_pool_diff = round(abs((d['level'] - FULL_POOL_FT) * 0.3048), 2) if d['level'] != "N/A" else "N/A"
     disp_water_temp = round((d['water_temp'] - 32) * 5/9, 1)
@@ -216,13 +210,12 @@ if st.session_state.is_metric:
     disp_vis = round(d['visibility'] * 1.60934, 1) if d['visibility'] != "N/A" else "N/A"
     disp_press = round(d['pressure'], 1) if d['pressure'] != "N/A" else "N/A"
 else:
-    unit_dist = "'" # using ' for feet to look cleaner
+    unit_dist = "'"
     unit_temp = "°F"
     unit_speed = "mph"
     unit_vis = "mi"
     unit_press = "inHg"
     
-    # Standard Imperial logic
     disp_level = round(d['level'], 2) if d['level'] != "N/A" else "N/A"
     disp_pool_diff = round(abs(d['level'] - FULL_POOL_FT), 2) if d['level'] != "N/A" else "N/A"
     disp_water_temp = d['water_temp']
@@ -230,7 +223,7 @@ else:
     disp_wind = round(d['wind_mph'], 1)
     disp_gusts = round(d['gusts'], 1)
     disp_vis = round(d['visibility'], 1) if d['visibility'] != "N/A" else "N/A"
-    disp_press = round(d['pressure'] * 0.02953, 2) if d['pressure'] != "N/A" else "N/A" # hPa to inHg
+    disp_press = round(d['pressure'] * 0.02953, 2) if d['pressure'] != "N/A" else "N/A"
 
 direction_text = get_compass_dir(d['wind_dir'])
 chop_text, chop_class = calculate_chop(d['wind_mph'], d['gusts'])
