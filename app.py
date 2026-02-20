@@ -386,116 +386,6 @@ wind_html = f"""
 st.markdown(wind_html, unsafe_allow_html=True)
 
 # --- Map ---
-st.markdown("### 🧭 Live Marine Navigation")
-
-places = [
-    {"name":"Pig Tales (Aqualand)","lat":34.148,"lon":-83.991,"type":"Restaurant"},
-    {"name":"Fish Tales (Hideaway)","lat":34.175,"lon":-83.961,"type":"Restaurant"},
-    {"name":"Pelican Pete's","lat":34.225,"lon":-84.001,"type":"Restaurant"},
-    {"name":"Twisted Oar","lat":34.188,"lon":-84.008,"type":"Restaurant"},
-    {"name":"LandShark / Margaritaville","lat":34.1852,"lon":-83.9854,"type":"Restaurant"},
-    {"name":"Holiday Marina (Gas)","lat":34.173,"lon":-84.017,"type":"Fuel"}
-]
-
-# Destination Selector
-nav_target_name = st.selectbox("Select Destination", ["None"] + [p["name"] for p in places])
-
-if nav_target_name != "None":
-    target_data = next(item for item in places if item["name"] == nav_target_name)
-    target_lat = target_data["lat"]
-    target_lon = target_data["lon"]
-    
-    # We inject a pure HTML/JS widget so the iPhone handles the live 1Hz GPS polling 
-    # without lagging the Streamlit server.
-    nav_html = f"""
-    <div class="metric-card" style="margin-bottom: 20px; padding: 15px; border: 2px solid #3498db;">
-        <div style="font-size: 0.9rem; font-weight: 700; color: #3498db; text-transform: uppercase; margin-bottom: 10px;">
-            Navigating to {nav_target_name}
-        </div>
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; text-align: center;">
-            <div>
-                <div style="font-size: 0.75rem; opacity: 0.8; font-weight: bold;">SPEED</div>
-                <div id="gps-speed" style="font-size: 1.5rem; font-weight: 900;">--</div>
-                <div style="font-size: 0.7rem;">mph</div>
-            </div>
-            <div>
-                <div style="font-size: 0.75rem; opacity: 0.8; font-weight: bold;">DISTANCE</div>
-                <div id="gps-dist" style="font-size: 1.5rem; font-weight: 900; color: #e74c3c;">--</div>
-                <div style="font-size: 0.7rem;">miles</div>
-            </div>
-            <div>
-                <div style="font-size: 0.75rem; opacity: 0.8; font-weight: bold;">HEADING</div>
-                <div id="gps-heading" style="font-size: 1.5rem; font-weight: 900;">--</div>
-                <div style="font-size: 0.7rem;">deg</div>
-            </div>
-        </div>
-        <div style="margin-top: 15px; background: rgba(52, 152, 219, 0.1); padding: 10px; border-radius: 8px; font-weight: bold; font-size: 0.9rem;">
-            ⏱️ ETA: <span id="gps-eta" style="color: #3498db;">Calculating...</span>
-        </div>
-    </div>
-
-    <script>
-    // Haversine formula to calculate straight-line distance on a sphere
-    function getDistance(lat1, lon1, lat2, lon2) {{
-        const R = 3958.8; // Radius of earth in miles
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLon = (lon2 - lon1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                  Math.sin(dLon/2) * Math.sin(dLon/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        return R * c;
-    }}
-
-    function updateGPS(position) {{
-        // 1. Calculate Distance
-        const dist = getDistance(position.coords.latitude, position.coords.longitude, {target_lat}, {target_lon});
-        document.getElementById("gps-dist").innerText = dist.toFixed(2);
-
-        // 2. Handle Speed (Browser returns meters/second, convert to mph)
-        let speed_mph = 0;
-        if (position.coords.speed != null) {{
-            speed_mph = position.coords.speed * 2.23694;
-            document.getElementById("gps-speed").innerText = speed_mph.toFixed(1);
-        }} else {{
-            document.getElementById("gps-speed").innerText = "0.0";
-        }}
-
-        // 3. Handle Heading
-        if (position.coords.heading != null && speed_mph > 1) {{
-            document.getElementById("gps-heading").innerText = Math.round(position.coords.heading) + "°";
-        }}
-
-        // 4. Calculate ETA
-        if (speed_mph > 2) {{
-            const hours = dist / speed_mph;
-            const mins = Math.round(hours * 60);
-            document.getElementById("gps-eta").innerText = mins + " mins";
-        }} else {{
-            document.getElementById("gps-eta").innerText = "Start moving...";
-        }}
-    }}
-
-    function handleError(error) {{
-        console.warn("GPS Error: ", error.message);
-        document.getElementById("gps-eta").innerText = "GPS Access Denied/Unavailable";
-    }}
-
-    // Request high accuracy GPS hardware polling
-    if (navigator.geolocation) {{
-        navigator.geolocation.watchPosition(updateGPS, handleError, {{
-            enableHighAccuracy: true,
-            maximumAge: 1000,
-            timeout: 5000
-        }});
-    }}
-    </script>
-    """
-    # Render the custom widget
-    st.components.v1.html(nav_html, height=180)
-
-
-# --- Map ---
 st.markdown("### 📍 Dock & Dine Navigation")
 
 places = [
@@ -507,61 +397,51 @@ places = [
     {"name":"Holiday Marina (Gas)","lat":34.173,"lon":-84.017,"type":"Fuel"}
 ]
 
-# Navigation Target Selector
-nav_target_name = st.selectbox("Select Destination for Live Navigation", ["None"] + [p["name"] for p in places])
+# Pass places to JavaScript safely (handles apostrophes like in "Pete's")
+places_json = json.dumps(places)
+map_tile_url = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" if st.session_state.dark_mode else "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
 
-if nav_target_name == "None":
-    # ---------------------------------------------------------
-    # EXPLORATION MODE (Static Map)
-    # ---------------------------------------------------------
-    category = st.multiselect("Show on Map", ["Restaurant","Fuel"], default=["Restaurant","Fuel"])
-    m = folium.Map(location=[34.18, -83.98], zoom_start=11, tiles=theme['map_tiles'])
-    for p in places:
-        if p["type"] in category:
-            color = "blue" if p["type"]=="Restaurant" else "green"
-            folium.Marker(
-                [p['lat'], p['lon']], popup=f"{p['name']} ({p['type']})", icon=folium.Icon(color=color, icon='anchor', prefix='fa')
-            ).add_to(m)
-    st_folium(m, width="100%", height=400)
-
-else:
-    # ---------------------------------------------------------
-    # ACTIVE NAVIGATION MODE (Hardware Accelerated GPS & Route Line)
-    # ---------------------------------------------------------
-    target_data = next(item for item in places if item["name"] == nav_target_name)
-    target_lat = target_data["lat"]
-    target_lon = target_data["lon"]
-    
-    # Select map tile style based on theme toggle
-    map_tile_url = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" if st.session_state.dark_mode else "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-
-    nav_html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-        <style>
-            body {{ margin: 0; padding: 0; font-family: -apple-system, sans-serif; }}
-            .nav-dashboard {{
-                background: {theme['card_bg']}; color: {theme['text']};
-                padding: 15px; border-radius: 12px 12px 0 0;
-                border: 2px solid #3498db; border-bottom: none;
-            }}
-            .stats-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; margin-top: 10px; }}
-            .stat-val {{ font-size: 1.5rem; font-weight: 900; }}
-            .stat-lbl {{ font-size: 0.75rem; opacity: 0.8; font-weight: bold; text-transform: uppercase; }}
-            #map {{ height: 400px; width: 100%; border-radius: 0 0 12px 12px; border: 2px solid #3498db; border-top: none; z-index: 1; }}
-            .gps-dot {{
-                background-color: #3498db; border: 3px solid white;
-                border-radius: 50%; box-shadow: 0 0 10px rgba(52, 152, 219, 0.8);
-            }}
-            .eta-box {{ margin-top: 10px; background: rgba(52, 152, 219, 0.1); padding: 8px; border-radius: 8px; font-weight: bold; text-align: center; color: #3498db; }}
-        </style>
-    </head>
-    <body>
-        <div class="nav-dashboard">
-            <div style="font-size: 1.1rem; font-weight: 800; text-align: center;">Navigating to {nav_target_name}</div>
+nav_html = f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        body {{ margin: 0; padding: 0; font-family: -apple-system, sans-serif; background: transparent; }}
+        
+        /* Map Container */
+        #map-container {{ position: relative; height: 500px; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid {theme['border']}; }}
+        #map {{ height: 100%; width: 100%; z-index: 1; }}
+        
+        /* Navigation Dashboard Overlay (Hidden by default) */
+        #nav-dashboard {{
+            display: none; position: absolute; top: 0; left: 0; width: 100%; z-index: 1000;
+            background: {theme['card_bg']}; color: {theme['text']}; padding: 15px;
+            border-bottom: 3px solid #3498db; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            box-sizing: border-box;
+        }}
+        
+        .stats-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; margin-top: 10px; }}
+        .stat-val {{ font-size: 1.5rem; font-weight: 900; }}
+        .stat-lbl {{ font-size: 0.75rem; opacity: 0.8; font-weight: bold; text-transform: uppercase; }}
+        .eta-box {{ margin-top: 10px; background: rgba(52, 152, 219, 0.1); padding: 8px; border-radius: 8px; font-weight: bold; text-align: center; color: #3498db; }}
+        
+        /* GPS Tracking Dot */
+        .gps-dot {{ background-color: #3498db; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(52, 152, 219, 0.8); }}
+        
+        /* Popup Buttons */
+        .start-btn {{ background: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 8px; width: 100%; }}
+        .stop-btn {{ background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.8rem; float: right; }}
+    </style>
+</head>
+<body>
+    <div id="map-container">
+        <div id="nav-dashboard">
+            <div style="font-size: 1.1rem; font-weight: 800;">
+                <span id="nav-title">Navigating...</span>
+                <button class="stop-btn" onclick="stopNav()">Stop Route</button>
+            </div>
             <div class="stats-grid">
                 <div><div class="stat-lbl">Speed</div><div class="stat-val" id="gps-speed">--</div><div style="font-size:0.6rem">mph</div></div>
                 <div><div class="stat-lbl">Distance</div><div class="stat-val" id="gps-dist" style="color:#e74c3c">--</div><div style="font-size:0.6rem">miles</div></div>
@@ -569,105 +449,147 @@ else:
             </div>
             <div class="eta-box">⏱️ ETA: <span id="gps-eta">Waiting for GPS lock...</span></div>
         </div>
+        
         <div id="map"></div>
+    </div>
 
-        <script>
-        // Initialize Map
-        var map = L.map('map', {{ zoomControl: false }}).setView([34.18, -83.98], 11);
-        L.tileLayer('{map_tile_url}', {{ attribution: '&copy; Carto' }}).addTo(map);
+    <script>
+    var map = L.map('map', {{ zoomControl: false }}).setView([34.18, -83.98], 11);
+    L.tileLayer('{map_tile_url}', {{ attribution: '&copy; Carto' }}).addTo(map);
 
-        // Add Target Marker (Red Pin)
-        var targetIcon = L.icon({{
-            iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-            iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
-        }});
-        L.marker([{target_lat}, {target_lon}], {{icon: targetIcon}}).addTo(map).bindPopup("<b>{nav_target_name}</b>").openPopup();
+    var places = {places_json};
+    var targetIcon = L.icon({{
+        iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+    }});
+    
+    var defaultIcon = L.icon({{
+        iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+    }});
 
-        var userMarker = null;
-        var routeLine = null;
-        var firstLock = false;
+    // Populate Map with markers and Add "Start Navigation" button to popups
+    places.forEach((p, index) => {{
+        var marker = L.marker([p.lat, p.lon], {{icon: defaultIcon}}).addTo(map);
+        var popupHTML = `
+            <div style="text-align: center; min-width: 120px;">
+                <b style="font-size: 1.1rem; color: #2c3e50;">${{p.name}}</b><br/>
+                <span style="font-size: 0.8rem; color: #7f8c8d;">${{p.type}}</span><br/>
+                <button class="start-btn" onclick="startNav(${{index}})">Start Navigation</button>
+            </div>
+        `;
+        marker.bindPopup(popupHTML);
+    }});
 
-        // Math: Haversine Formula for straight-line marine distance
-        function getDistance(lat1, lon1, lat2, lon2) {{
-            const R = 3958.8; 
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
-            return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
-        }}
+    var watchId = null;
+    var userMarker = null;
+    var routeLine = null;
+    var targetMarker = null;
+    var currentTarget = null;
+    var firstLock = false;
 
-        function updateNav(position) {{
-            var lat = position.coords.latitude;
-            var lon = position.coords.longitude;
-            var userLatLng = [lat, lon];
-            var targetLatLng = [{target_lat}, {target_lon}];
+    // Haversine Formula for distance
+    function getDistance(lat1, lon1, lat2, lon2) {{
+        const R = 3958.8; 
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+    }}
 
-            // 1. Draw/Move the User Dot
-            if (!userMarker) {{
-                var dotIcon = L.divIcon({{className: 'gps-dot', iconSize: [16, 16], iconAnchor: [8, 8]}});
-                userMarker = L.marker(userLatLng, {{icon: dotIcon}}).addTo(map);
-            }} else {{
-                userMarker.setLatLng(userLatLng);
-            }}
+    // Triggered when user clicks "Start Navigation" in the popup
+    window.startNav = function(index) {{
+        currentTarget = places[index];
+        map.closePopup();
+        
+        // Show Dashboard
+        document.getElementById('nav-dashboard').style.display = 'block';
+        document.getElementById('nav-title').innerText = currentTarget.name;
+        
+        // Emphasize Target Marker
+        if(targetMarker) map.removeLayer(targetMarker);
+        targetMarker = L.marker([currentTarget.lat, currentTarget.lon], {{icon: targetIcon}}).addTo(map);
 
-            // 2. Draw/Update the Tracking Line
-            if (!routeLine) {{
-                routeLine = L.polyline([userLatLng, targetLatLng], {{color: '#3498db', weight: 4, dashArray: '10, 10'}}).addTo(map);
-            }} else {{
-                routeLine.setLatLngs([userLatLng, targetLatLng]);
-            }}
-
-            // 3. Auto-zoom map to fit both the boat and the destination
-            if (!firstLock) {{
-                map.fitBounds(routeLine.getBounds(), {{padding: [40, 40]}});
-                firstLock = true;
-            }}
-
-            // 4. Update the Math Dashboard
-            const dist = getDistance(lat, lon, {target_lat}, {target_lon});
-            document.getElementById("gps-dist").innerText = dist.toFixed(2);
-
-            let speed_mph = 0;
-            if (position.coords.speed != null) {{
-                speed_mph = position.coords.speed * 2.23694; // meters/sec to mph
-                document.getElementById("gps-speed").innerText = speed_mph.toFixed(1);
-            }} else {{
-                document.getElementById("gps-speed").innerText = "0.0";
-            }}
-
-            if (position.coords.heading != null && speed_mph > 1) {{
-                document.getElementById("gps-heading").innerText = Math.round(position.coords.heading) + "°";
-            }}
-
-            if (speed_mph > 2) {{
-                const hours = dist / speed_mph;
-                const mins = Math.round(hours * 60);
-                document.getElementById("gps-eta").innerText = mins + " mins";
-            }} else {{
-                document.getElementById("gps-eta").innerText = "Start moving to calculate...";
-            }}
-        }}
-
-        function handleError(error) {{
-            document.getElementById("gps-eta").innerText = "GPS Access Denied/Unavailable";
-        }}
-
-        // Hardware Polling loop
+        firstLock = false;
+        
+        // Start GPS Polling
         if (navigator.geolocation) {{
-            navigator.geolocation.watchPosition(updateNav, handleError, {{
-                enableHighAccuracy: true,
-                maximumAge: 1000,
-                timeout: 5000
+            watchId = navigator.geolocation.watchPosition(updateNav, handleError, {{
+                enableHighAccuracy: true, maximumAge: 1000, timeout: 5000
             }});
         }}
-        </script>
-    </body>
-    </html>
-    """
-    st.components.v1.html(nav_html, height=560)
+    }};
+
+    // Triggered when user clicks "Stop Route"
+    window.stopNav = function() {{
+        if(watchId) navigator.geolocation.clearWatch(watchId);
+        document.getElementById('nav-dashboard').style.display = 'none';
+        if(routeLine) map.removeLayer(routeLine);
+        if(targetMarker) map.removeLayer(targetMarker);
+        if(userMarker) map.removeLayer(userMarker);
+        routeLine = null; targetMarker = null; userMarker = null;
+        map.setView([34.18, -83.98], 11); // Reset view to lake
+    }};
+
+    function updateNav(position) {{
+        if(!currentTarget) return;
+        var lat = position.coords.latitude;
+        var lon = position.coords.longitude;
+        var userLatLng = [lat, lon];
+        var targetLatLng = [currentTarget.lat, currentTarget.lon];
+
+        if (!userMarker) {{
+            var dotIcon = L.divIcon({{className: 'gps-dot', iconSize: [16, 16], iconAnchor: [8, 8]}});
+            userMarker = L.marker(userLatLng, {{icon: dotIcon}}).addTo(map);
+        }} else {{
+            userMarker.setLatLng(userLatLng);
+        }}
+
+        if (!routeLine) {{
+            routeLine = L.polyline([userLatLng, targetLatLng], {{color: '#3498db', weight: 4, dashArray: '10, 10'}}).addTo(map);
+        }} else {{
+            routeLine.setLatLngs([userLatLng, targetLatLng]);
+        }}
+
+        if (!firstLock) {{
+            map.fitBounds(routeLine.getBounds(), {{padding: [40, 40]}});
+            firstLock = true;
+        }}
+
+        const dist = getDistance(lat, lon, currentTarget.lat, currentTarget.lon);
+        document.getElementById("gps-dist").innerText = dist.toFixed(2);
+
+        let speed_mph = 0;
+        if (position.coords.speed != null) {{
+            speed_mph = position.coords.speed * 2.23694; 
+            document.getElementById("gps-speed").innerText = speed_mph.toFixed(1);
+        }} else {{
+            document.getElementById("gps-speed").innerText = "0.0";
+        }}
+
+        if (position.coords.heading != null && speed_mph > 1) {{
+            document.getElementById("gps-heading").innerText = Math.round(position.coords.heading) + "°";
+        }}
+
+        if (speed_mph > 2) {{
+            const hours = dist / speed_mph;
+            const mins = Math.round(hours * 60);
+            document.getElementById("gps-eta").innerText = mins + " mins";
+        }} else {{
+            document.getElementById("gps-eta").innerText = "Start moving to calculate...";
+        }}
+    }}
+
+    function handleError(error) {{
+        document.getElementById("gps-eta").innerText = "GPS Access Denied/Unavailable";
+    }}
+    </script>
+</body>
+</html>
+"""
+st.components.v1.html(nav_html, height=520)
 
 # --- Pre-Departure & Utilities ---
 st.markdown("---")
