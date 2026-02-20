@@ -49,30 +49,24 @@ st.markdown(f"""
     /* Global App Background */
     .stApp {{ background-color: {theme['bg']} !important; }}
     
-    /* Force Streamlit Labels and Text to use Theme Color */
     h3, div[data-testid="stWidgetLabel"] p, p {{ color: {theme['text']} !important; font-weight: 600; }}
     
-    /* Responsive Title */
     .main-title {{
         color: {theme['text']} !important; font-weight: 800; font-size: clamp(1.8rem, 5vw, 2.5rem);
         white-space: nowrap; margin-bottom: 0px; margin-top: 15px;
     }}
     
-    /* FIX: Force Toggle Track Visibility in Light Mode */
     div[data-testid="stToggle"] label div[role="switch"] {{ background-color: #a0aab5 !important; }}
     div[data-testid="stToggle"] label div[role="switch"][aria-checked="true"] {{ background-color: #3498db !important; }}
     
-    /* Control Panel Box */
     .control-panel {{
         background-color: {theme['card_bg']}; padding: 5px 15px; border-radius: 12px;
         border: 2px solid {theme['border']}; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px;
     }}
     
-    /* CSS Grids */
     .metrics-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px; }}
     .wind-grid {{ display: grid; grid-template-columns: 1fr 2fr; gap: 15px; margin-bottom: 25px; }}
     
-    /* Beautiful Metric Cards */
     .metric-card {{
         background: {theme['card_bg']}; border-radius: 15px; padding: 20px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; border: 1px solid {theme['border']};
@@ -84,12 +78,10 @@ st.markdown(f"""
     .text-red {{ color: #e74c3c; }}
     .text-blue {{ color: #3498db; }}
     
-    /* Chop Conditions */
     .chop-safe {{ color: #2ecc71; font-weight: 800; }}
     .chop-warn {{ color: #f1c40f; font-weight: 800; }}
     .chop-danger {{ color: #e74c3c; font-weight: 800; }}
     
-    /* Responsive Flexbox Grid for Quick Info Pills */
     .pill-container {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 25px; margin-top: 5px; }}
     .info-pill {{
         background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 30px; padding: 8px 15px;
@@ -97,7 +89,6 @@ st.markdown(f"""
         flex: 1 1 calc(33% - 10px); min-width: 130px; box-shadow: 0 2px 5px rgba(0,0,0,0.02);
     }}
     
-    /* Wind Container */
     .wind-container {{
         background: linear-gradient(135deg, #2c3e50, #3498db); border-radius: 20px; padding: 20px; color: white;
         text-align: center; box-shadow: 0 10px 20px rgba(0,0,0,0.15); height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center;
@@ -109,6 +100,36 @@ st.markdown(f"""
     }}
     .animated-wind {{ display: inline-block; animation: wind-pulse 2s infinite ease-in-out; transition: transform 0.5s ease; }}
     .wind-stats-flex {{ margin-top: 15px; display: flex; justify-content: space-around; }}
+
+    /* NEW: Dynamic Wave Animation CSS */
+    .sim-wave-box {{
+        position: relative;
+        background: linear-gradient(to bottom, transparent 0%, rgba(52, 152, 219, 0.1) 100%);
+        height: 100px;
+        border-radius: 10px;
+        overflow: hidden;
+        margin-top: 15px;
+        width: 100%;
+        border-bottom: 3px solid #3498db;
+    }}
+    .sim-wave-back {{
+        position: absolute; bottom: 0; left: 0; width: 200%; height: 60px;
+        background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,60 350,0 600,30 C850,60 1050,0 1200,30 L1200,60 L0,60 Z" fill="%232980b9" opacity="0.5"/></svg>') repeat-x;
+        background-size: 50% 100%;
+        transform-origin: bottom;
+        animation: wave-move var(--wave-speed-back, 3s) linear infinite reverse;
+    }}
+    .sim-wave-front {{
+        position: absolute; bottom: 0; left: 0; width: 200%; height: 50px;
+        background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,0 350,60 600,30 C850,0 1050,60 1200,30 L1200,60 L0,60 Z" fill="%233498db" opacity="0.8"/></svg>') repeat-x;
+        background-size: 50% 100%;
+        transform-origin: bottom;
+        animation: wave-move var(--wave-speed-front, 2.5s) linear infinite;
+    }}
+    @keyframes wave-move {{
+        0% {{ transform: translateX(0) scaleY(var(--wave-scale, 1)); }}
+        100% {{ transform: translateX(-50%) scaleY(var(--wave-scale, 1)); }}
+    }}
 
     /* MOBILE OVERRIDES */
     @media (max-width: 600px) {{
@@ -209,6 +230,9 @@ d = fetch_data()
 trend_24h = fetch_level_trend()
 FULL_POOL_FT = 1071.0
 
+# Base wave calculation without vessel multiplier
+wave_height = round(0.016 * (d["wind_mph"] ** 1.5), 1)
+
 if st.session_state.is_metric:
     unit_dist, unit_temp, unit_speed, unit_vis, unit_press = "m", "°C", "km/h", "km", "hPa"
     disp_level = round(d['level'] * 0.3048, 2) if d['level'] != "N/A" else "N/A"
@@ -219,6 +243,7 @@ if st.session_state.is_metric:
     disp_gusts = round(d['gusts'] * 1.60934, 1)
     disp_vis = round(d['visibility'] * 1.60934, 1) if d['visibility'] != "N/A" else "N/A"
     disp_press = round(d['pressure'], 1) if d['pressure'] != "N/A" else "N/A"
+    disp_wave = round(wave_height * 0.3048, 1)
 else:
     unit_dist, unit_temp, unit_speed, unit_vis, unit_press = "'", "°F", "mph", "mi", "inHg"
     disp_level = round(d['level'], 2) if d['level'] != "N/A" else "N/A"
@@ -229,6 +254,7 @@ else:
     disp_gusts = round(d['gusts'], 1)
     disp_vis = round(d['visibility'], 1) if d['visibility'] != "N/A" else "N/A"
     disp_press = round(d['pressure'] * 0.02953, 2) if d['pressure'] != "N/A" else "N/A"
+    disp_wave = wave_height
 
 direction_text = get_compass_dir(d['wind_dir'])
 chop_text, chop_class = calculate_chop(d['wind_mph'], d['gusts'])
@@ -274,48 +300,70 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- Boating Conditions Section ---
+# --- Boating Score & Safety Banner ---
 st.markdown("### 🚦 Boating Conditions & Safety")
-bc1, bc2 = st.columns([1, 1])
-with bc1:
-    boat_type = st.selectbox("Select Vessel Type", ["Pontoon", "Ski Boat", "Fishing Boat", "Jet Ski"])
-
-# Dynamically calculate waves based on vessel
-wave_base = 0.016 * (d["wind_mph"] ** 1.5)
-if boat_type == "Jet Ski": wave_height = wave_base * 1.2
-elif boat_type == "Pontoon": wave_height = wave_base * 0.8
-else: wave_height = wave_base
-wave_height = round(wave_height, 1)
-
-disp_wave = round(wave_height * 0.3048, 1) if st.session_state.is_metric else wave_height
-unit_wave = "m" if st.session_state.is_metric else "ft"
 
 boat_score = calculate_boat_score(d, wave_height)
 alerts = get_safety_alert(d, wave_height)
 
-with bc2:
-    if boat_score >= 85: score_label, score_color = "🟢 Excellent", "#2ecc71"
-    elif boat_score >= 65: score_label, score_color = "🟡 Good", "#f1c40f"
-    elif boat_score >= 40: score_label, score_color = "🟠 Marginal", "#e67e22"
-    else: score_label, score_color = "🔴 Stay Home", "#e74c3c"
-    
-    st.markdown(f"""
-    <div class="metric-card" style="padding: 12px; margin-bottom: 0px;">
-        <div class="metric-title" style="margin-bottom: 2px;">Boating Score</div>
-        <div style="font-size: 1.6rem; font-weight: 900; color: {score_color}; line-height: 1;">{boat_score}/100</div>
-        <div class="metric-sub">{score_label}</div>
-    </div>
-    """, unsafe_allow_html=True)
+if boat_score >= 85: score_label, score_color = "🟢 Excellent", "#2ecc71"
+elif boat_score >= 65: score_label, score_color = "🟡 Good", "#f1c40f"
+elif boat_score >= 40: score_label, score_color = "🟠 Marginal", "#e67e22"
+else: score_label, score_color = "🔴 Stay Home", "#e74c3c"
+
+st.markdown(f"""
+<div class="metric-card" style="padding: 15px; margin-bottom: 15px;">
+    <div class="metric-title" style="margin-bottom: 5px;">Overall Boating Score</div>
+    <div style="font-size: 2.5rem; font-weight: 900; color: {score_color}; line-height: 1; margin: 10px 0;">{boat_score}<span style="font-size: 1.2rem; color: {theme['sub_text']}">/100</span></div>
+    <div class="metric-sub" style="font-size: 1rem;">{score_label} (Based on wind, rain & waves)</div>
+</div>
+""", unsafe_allow_html=True)
 
 if alerts:
     st.markdown(f"""
-    <div style="background:#e74c3c; padding:12px; border-radius:12px; color:white; font-weight:700; text-align:center; margin-top: 15px; margin-bottom:15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    <div style="background:#e74c3c; padding:12px; border-radius:12px; color:white; font-weight:700; text-align:center; margin-top: 15px; margin-bottom:20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
         ⚠️ {" | ".join(alerts)}
     </div>
     """, unsafe_allow_html=True)
 
-# --- Wind & Surface Simulation ---
-st.markdown("### 💨 Live Wind & Surface Simulation")
+# --- NEW: Live Camera & Wave Simulator Section ---
+st.markdown("### 📷 Live Camera & Wave Simulator")
+
+# Streamlit columns automatically stack perfectly on mobile phones
+cam_col, sim_col = st.columns([1, 1])
+
+with cam_col:
+    st.markdown('<div class="metric-title" style="margin-bottom:10px;">🔴 Lake Lanier Sailing Club Live</div>', unsafe_allow_html=True)
+    # Streamlit natively handles YouTube embeds and makes them responsive
+    st.video("https://www.youtube.com/watch?v=QjJC9ORyOMQ")
+
+with sim_col:
+    st.markdown('<div class="metric-title" style="margin-bottom:10px;">🌊 Wave Height Simulation</div>', unsafe_allow_html=True)
+    
+    # Mathematical variables to control the CSS animation dynamically
+    # Wave Scale: Flattens out near 0 wind, scales up to 2.5x height on high wind
+    css_wave_scale = max(0.15, min(wave_height * 0.6 + 0.15, 2.5))
+    
+    # Animation Speed: Glassy water moves slow (8s), high wind moves extremely fast (1.5s)
+    css_speed_front = max(1.5, 8.0 - (d["wind_mph"] * 0.25))
+    css_speed_back = max(1.2, 6.0 - (d["wind_mph"] * 0.25))
+
+    wave_sim_html = f"""
+    <div class="metric-card" style="padding: 15px; height: 100%; display: flex; flex-direction: column; justify-content: space-between; margin-bottom: 0px;">
+        <div style="text-align: center; margin-bottom: 10px;">
+            <div style="font-size: 2.5rem; font-weight: 900; color: {theme['text']}; line-height: 1;">{disp_wave} {unit_dist}</div>
+            <div style="font-size: 0.9rem; font-weight: 600; color: {theme['sub_text']}; margin-top: 5px;">Estimated Surface Chop</div>
+        </div>
+        <div class="sim-wave-box" style="--wave-scale: {css_wave_scale}; --wave-speed-front: {css_speed_front}s; --wave-speed-back: {css_speed_back}s;">
+            <div class="sim-wave-back"></div>
+            <div class="sim-wave-front"></div>
+        </div>
+    </div>
+    """
+    st.markdown(wave_sim_html, unsafe_allow_html=True)
+
+# --- Wind & Surface Stats ---
+st.markdown("### 💨 Live Wind Details")
 st.markdown(f"""
 <div class="wind-grid">
     <div class="wind-container">
@@ -330,9 +378,8 @@ st.markdown(f"""
         <div style="font-size: 0.9rem; opacity: 0.8;">{d['wind_dir']}°</div>
     </div>
     <div class="metric-card" style="margin-bottom: 0;">
-        <div class="metric-title">Surface Condition</div>
+        <div class="metric-title">Wind Condition</div>
         <div class="metric-value {chop_class}" style="font-size: 1.15rem; margin-top: 5px;">{chop_text}</div>
-        <div class="metric-sub">🌊 Est Waves: {disp_wave} {unit_wave}</div>
         <div class="wind-stats-flex">
             <div>
                 <div class="metric-title" style="font-size: 0.75rem;">Sustained</div>
@@ -384,7 +431,6 @@ with st.expander("⛽ Fuel Range Estimator"):
     mpg = st.number_input("Boat MPG", min_value=0.1, step=0.1)
     if fuel and mpg:
         safe_range = fuel * mpg * 0.7
-        # Convert range if metric is active
         if st.session_state.is_metric:
             st.success(f"Safe Range (30% reserve): {round(safe_range * 1.60934, 1)} kilometers")
         else:
