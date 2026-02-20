@@ -388,18 +388,23 @@ st.markdown(wind_html, unsafe_allow_html=True)
 # --- Map ---
 st.markdown("### 📍 Dock & Dine Navigation")
 
+# Expanded POIs with distinct categories
 places = [
-    {"name":"Pig Tales (Aqualand)","lat":34.148,"lon":-83.991,"type":"Restaurant"},
-    {"name":"Fish Tales (Hideaway)","lat":34.175,"lon":-83.961,"type":"Restaurant"},
-    {"name":"Pelican Pete's","lat":34.225,"lon":-84.001,"type":"Restaurant"},
-    {"name":"Twisted Oar","lat":34.188,"lon":-84.008,"type":"Restaurant"},
-    {"name":"LandShark / Margaritaville","lat":34.1852,"lon":-83.9854,"type":"Restaurant"},
-    {"name":"Holiday Marina (Gas)","lat":34.173,"lon":-84.017,"type":"Fuel"}
+    {"name":"Pig Tales (Aqualand)","lat":34.148,"lon":-83.991,"type":"Dining"},
+    {"name":"Fish Tales (Hideaway)","lat":34.175,"lon":-83.961,"type":"Dining"},
+    {"name":"Pelican Pete's","lat":34.225,"lon":-84.001,"type":"Dining"},
+    {"name":"Twisted Oar","lat":34.188,"lon":-84.008,"type":"Dining"},
+    {"name":"LandShark / Margaritaville","lat":34.1852,"lon":-83.9854,"type":"Dining"},
+    {"name":"Holiday Marina (Gas)","lat":34.173,"lon":-84.017,"type":"Fuel"},
+    {"name":"Sunset Cove (Gas)","lat":34.183,"lon":-83.987,"type":"Fuel"},
+    {"name":"Aqualand Marina","lat":34.145,"lon":-83.994,"type":"Marina"},
+    {"name":"Port Royale Marina","lat":34.228,"lon":-84.002,"type":"Marina"}
 ]
 
-# Pass places to JavaScript safely (handles apostrophes like in "Pete's")
+# Pass data securely to JS
 places_json = json.dumps(places)
 map_tile_url = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" if st.session_state.dark_mode else "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+js_metric_flag = "true" if st.session_state.is_metric else "false"
 
 nav_html = f"""
 <!DOCTYPE html>
@@ -410,41 +415,88 @@ nav_html = f"""
     <style>
         body {{ margin: 0; padding: 0; font-family: -apple-system, sans-serif; background: transparent; }}
         
-        /* Map Container */
-        #map-container {{ position: relative; height: 500px; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid {theme['border']}; }}
+        #map-container {{ position: relative; height: 550px; width: 100%; border-radius: 12px; overflow: hidden; border: 1px solid {theme['border']}; }}
         #map {{ height: 100%; width: 100%; z-index: 1; }}
         
-        /* Navigation Dashboard Overlay (Hidden by default) */
+        /* Floating Map Filters */
+        #filter-panel {{
+            position: absolute; top: 10px; right: 10px; z-index: 1000;
+            background: {theme['card_bg']}; color: {theme['text']};
+            padding: 10px 15px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            border: 1px solid {theme['border']}; font-size: 0.9rem; font-weight: bold;
+        }}
+        .filter-cb {{ margin-right: 8px; transform: scale(1.2); cursor: pointer; }}
+        .filter-row {{ margin-bottom: 8px; display: flex; align-items: center; cursor: pointer; }}
+
+        /* Navigation Dashboard Overlay */
         #nav-dashboard {{
-            display: none; position: absolute; top: 0; left: 0; width: 100%; z-index: 1000;
+            display: none; position: absolute; top: 0; left: 0; width: 100%; z-index: 1001;
             background: {theme['card_bg']}; color: {theme['text']}; padding: 15px;
-            border-bottom: 3px solid #3498db; box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            box-sizing: border-box;
+            border-bottom: 3px solid #3498db; box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            box-sizing: border-box; border-radius: 12px 12px 0 0;
         }}
         
-        .stats-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; margin-top: 10px; }}
-        .stat-val {{ font-size: 1.5rem; font-weight: 900; }}
-        .stat-lbl {{ font-size: 0.75rem; opacity: 0.8; font-weight: bold; text-transform: uppercase; }}
-        .eta-box {{ margin-top: 10px; background: rgba(52, 152, 219, 0.1); padding: 8px; border-radius: 8px; font-weight: bold; text-align: center; color: #3498db; }}
+        .stats-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); text-align: center; margin-top: 15px; }}
+        .stat-val {{ font-size: 1.4rem; font-weight: 900; }}
+        .stat-lbl {{ font-size: 0.7rem; opacity: 0.8; font-weight: bold; text-transform: uppercase; }}
+        .eta-box {{ margin-top: 15px; background: rgba(52, 152, 219, 0.1); padding: 8px; border-radius: 8px; font-weight: bold; text-align: center; color: #3498db; }}
         
-        /* GPS Tracking Dot */
-        .gps-dot {{ background-color: #3498db; border: 3px solid white; border-radius: 50%; box-shadow: 0 0 10px rgba(52, 152, 219, 0.8); }}
+        /* Custom Map Markers */
+        .map-marker {{
+            width: 34px; height: 34px; background: white; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.4); font-size: 18px; border: 2px solid white;
+        }}
+        .marker-dining {{ border-color: #e74c3c; background: #ffeaa7; }}
+        .marker-fuel {{ border-color: #f39c12; background: #ffeaa7; }}
+        .marker-marina {{ border-color: #3498db; background: #81ecec; }}
         
-        /* Popup Buttons */
-        .start-btn {{ background: #3498db; color: white; border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 8px; width: 100%; }}
+        /* The Boat Icon */
+        .boat-marker {{
+            font-size: 32px; line-height: 32px; text-align: center;
+            filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.5));
+            transition: transform 0.3s linear;
+        }}
+
+        /* Buttons */
+        .start-btn {{ background: #3498db; color: white; border: none; padding: 10px 15px; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 10px; width: 100%; }}
         .stop-btn {{ background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 0.8rem; float: right; }}
+        
+        /* Steering Compass */
+        .steer-compass {{
+            margin: 10px auto 0 auto; width: 50px; height: 50px; border-radius: 50%;
+            background: {theme['bg']}; border: 2px solid #3498db; display: flex;
+            align-items: center; justify-content: center; box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+        }}
     </style>
 </head>
 <body>
     <div id="map-container">
+        <div id="filter-panel">
+            <label class="filter-row"><input type="checkbox" class="filter-cb" value="Dining" checked onchange="renderMarkers()"> 🍽️ Dining</label>
+            <label class="filter-row"><input type="checkbox" class="filter-cb" value="Fuel" checked onchange="renderMarkers()"> ⛽ Fuel</label>
+            <label class="filter-row" style="margin-bottom:0;"><input type="checkbox" class="filter-cb" value="Marina" checked onchange="renderMarkers()"> ⚓ Marinas</label>
+        </div>
+
         <div id="nav-dashboard">
-            <div style="font-size: 1.1rem; font-weight: 800;">
-                <span id="nav-title">Navigating...</span>
-                <button class="stop-btn" onclick="stopNav()">Stop Route</button>
+            <div style="font-size: 1.1rem; font-weight: 800; display: flex; justify-content: space-between; align-items: center;">
+                <span id="nav-title" style="color:#3498db;">Navigating...</span>
+                <button class="stop-btn" onclick="stopNav()">🛑 Stop</button>
             </div>
+            
+            <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
+                <div class="steer-compass">
+                    <svg id="nav-arrow" style="transition: transform 0.3s;" width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#3498db" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="12" y1="19" x2="12" y2="5"></line>
+                        <polyline points="5 12 12 5 19 12"></polyline>
+                    </svg>
+                </div>
+                <div style="font-size: 0.8rem; opacity: 0.8; font-weight: bold; width: 80px;">TURN TO <br>TARGET</div>
+            </div>
+
             <div class="stats-grid">
-                <div><div class="stat-lbl">Speed</div><div class="stat-val" id="gps-speed">--</div><div style="font-size:0.6rem">mph</div></div>
-                <div><div class="stat-lbl">Distance</div><div class="stat-val" id="gps-dist" style="color:#e74c3c">--</div><div style="font-size:0.6rem">miles</div></div>
+                <div><div class="stat-lbl">Speed</div><div class="stat-val" id="gps-speed">--</div><div style="font-size:0.6rem" id="lbl-speed">mph</div></div>
+                <div><div class="stat-lbl">Distance</div><div class="stat-val" id="gps-dist" style="color:#e74c3c">--</div><div style="font-size:0.6rem" id="lbl-dist">miles</div></div>
                 <div><div class="stat-lbl">Heading</div><div class="stat-val" id="gps-heading">--</div><div style="font-size:0.6rem">deg</div></div>
             </div>
             <div class="eta-box">⏱️ ETA: <span id="gps-eta">Waiting for GPS lock...</span></div>
@@ -454,67 +506,93 @@ nav_html = f"""
     </div>
 
     <script>
+    var isMetric = {js_metric_flag};
     var map = L.map('map', {{ zoomControl: false }}).setView([34.18, -83.98], 11);
     L.tileLayer('{map_tile_url}', {{ attribution: '&copy; Carto' }}).addTo(map);
 
     var places = {places_json};
+    var markersLayer = L.layerGroup().addTo(map);
+    
+    // Custom Icons mapping
+    var iconMap = {{
+        "Dining": L.divIcon({{className: '', html: '<div class="map-marker marker-dining">🍔</div>', iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17]}}),
+        "Fuel": L.divIcon({{className: '', html: '<div class="map-marker marker-fuel">⛽</div>', iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17]}}),
+        "Marina": L.divIcon({{className: '', html: '<div class="map-marker marker-marina">⚓</div>', iconSize: [34,34], iconAnchor: [17,17], popupAnchor: [0,-17]}})
+    }};
+
     var targetIcon = L.icon({{
         iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
         shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34]
     }});
+
+    // Rendering Markers based on filters
+    window.renderMarkers = function() {{
+        markersLayer.clearLayers();
+        var checkboxes = document.querySelectorAll('.filter-cb');
+        var activeFilters = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+
+        places.forEach((p, index) => {{
+            if (activeFilters.includes(p.type)) {{
+                var marker = L.marker([p.lat, p.lon], {{icon: iconMap[p.type] || iconMap["Dining"]}}).addTo(markersLayer);
+                var popupHTML = `
+                    <div style="text-align: center; min-width: 130px; font-family: sans-serif;">
+                        <b style="font-size: 1.1rem; color: #2c3e50;">${{p.name}}</b><br/>
+                        <span style="font-size: 0.8rem; color: #7f8c8d;">${{p.type}}</span><br/>
+                        <button class="start-btn" onclick="startNav(${{index}})">Start Navigating</button>
+                    </div>
+                `;
+                marker.bindPopup(popupHTML);
+            }}
+        }});
+    }};
     
-    var defaultIcon = L.icon({{
-        iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
-    }});
+    // Initial Render
+    renderMarkers();
 
-    // Populate Map with markers and Add "Start Navigation" button to popups
-    places.forEach((p, index) => {{
-        var marker = L.marker([p.lat, p.lon], {{icon: defaultIcon}}).addTo(map);
-        var popupHTML = `
-            <div style="text-align: center; min-width: 120px;">
-                <b style="font-size: 1.1rem; color: #2c3e50;">${{p.name}}</b><br/>
-                <span style="font-size: 0.8rem; color: #7f8c8d;">${{p.type}}</span><br/>
-                <button class="start-btn" onclick="startNav(${{index}})">Start Navigation</button>
-            </div>
-        `;
-        marker.bindPopup(popupHTML);
-    }});
-
+    // Global Navigation Variables
     var watchId = null;
     var userMarker = null;
     var routeLine = null;
     var targetMarker = null;
     var currentTarget = null;
-    var firstLock = false;
+    var isNavigating = false;
 
-    // Haversine Formula for distance
+    // Advanced Marine Math
     function getDistance(lat1, lon1, lat2, lon2) {{
-        const R = 3958.8; 
+        const R = isMetric ? 6371 : 3958.8; // km or miles
         const dLat = (lat2 - lat1) * Math.PI / 180;
         const dLon = (lon2 - lon1) * Math.PI / 180;
         const a = Math.sin(dLat/2) * Math.sin(dLat/2) + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
         return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
     }}
 
-    // Triggered when user clicks "Start Navigation" in the popup
+    function getBearing(lat1, lon1, lat2, lon2) {{
+        var dLon = (lon2 - lon1) * Math.PI / 180;
+        var y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
+        var x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
+                Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLon);
+        var brng = Math.atan2(y, x) * 180 / Math.PI;
+        return (brng + 360) % 360;
+    }}
+
     window.startNav = function(index) {{
         currentTarget = places[index];
         map.closePopup();
+        isNavigating = true;
         
-        // Show Dashboard
+        // Update UI Text
         document.getElementById('nav-dashboard').style.display = 'block';
-        document.getElementById('nav-title').innerText = currentTarget.name;
+        document.getElementById('filter-panel').style.display = 'none';
+        document.getElementById('nav-title').innerText = "To: " + currentTarget.name;
+        document.getElementById('lbl-speed').innerText = isMetric ? "km/h" : "mph";
+        document.getElementById('lbl-dist').innerText = isMetric ? "km" : "miles";
         
-        // Emphasize Target Marker
+        // Set target pin
         if(targetMarker) map.removeLayer(targetMarker);
         targetMarker = L.marker([currentTarget.lat, currentTarget.lon], {{icon: targetIcon}}).addTo(map);
 
-        firstLock = false;
-        
-        // Start GPS Polling
+        // Hardware GPS request
         if (navigator.geolocation) {{
             watchId = navigator.geolocation.watchPosition(updateNav, handleError, {{
                 enableHighAccuracy: true, maximumAge: 1000, timeout: 5000
@@ -522,74 +600,90 @@ nav_html = f"""
         }}
     }};
 
-    // Triggered when user clicks "Stop Route"
     window.stopNav = function() {{
+        isNavigating = false;
         if(watchId) navigator.geolocation.clearWatch(watchId);
         document.getElementById('nav-dashboard').style.display = 'none';
+        document.getElementById('filter-panel').style.display = 'block';
+        
         if(routeLine) map.removeLayer(routeLine);
         if(targetMarker) map.removeLayer(targetMarker);
         if(userMarker) map.removeLayer(userMarker);
         routeLine = null; targetMarker = null; userMarker = null;
-        map.setView([34.18, -83.98], 11); // Reset view to lake
+        map.setView([34.18, -83.98], 11);
     }};
 
     function updateNav(position) {{
-        if(!currentTarget) return;
+        if(!isNavigating || !currentTarget) return;
+        
         var lat = position.coords.latitude;
         var lon = position.coords.longitude;
+        var heading = position.coords.heading || 0;
         var userLatLng = [lat, lon];
         var targetLatLng = [currentTarget.lat, currentTarget.lon];
 
+        // 1. Update the Rotating Boat Icon
         if (!userMarker) {{
-            var dotIcon = L.divIcon({{className: 'gps-dot', iconSize: [16, 16], iconAnchor: [8, 8]}});
-            userMarker = L.marker(userLatLng, {{icon: dotIcon}}).addTo(map);
+            let boatHtml = `<div id="boat-icon" class="boat-marker" style="transform: rotate(${{heading}}deg);">🚤</div>`;
+            var icon = L.divIcon({{className: '', html: boatHtml, iconSize: [32, 32], iconAnchor: [16, 16]}});
+            userMarker = L.marker(userLatLng, {{icon: icon, zIndexOffset: 1000}}).addTo(map);
         }} else {{
             userMarker.setLatLng(userLatLng);
+            let boatEl = document.getElementById('boat-icon');
+            if (boatEl) boatEl.style.transform = `rotate(${{heading}}deg)`;
         }}
 
+        // 2. Lock Map to Boat
+        map.setView(userLatLng, 14, {{animate: true}});
+
+        // 3. Draw Route Line
         if (!routeLine) {{
-            routeLine = L.polyline([userLatLng, targetLatLng], {{color: '#3498db', weight: 4, dashArray: '10, 10'}}).addTo(map);
+            routeLine = L.polyline([userLatLng, targetLatLng], {{color: '#3498db', weight: 4, dashArray: '8, 8'}}).addTo(map);
         }} else {{
             routeLine.setLatLngs([userLatLng, targetLatLng]);
         }}
 
-        if (!firstLock) {{
-            map.fitBounds(routeLine.getBounds(), {{padding: [40, 40]}});
-            firstLock = true;
-        }}
-
+        // 4. Mathematical Calculations
         const dist = getDistance(lat, lon, currentTarget.lat, currentTarget.lon);
+        const targetBearing = getBearing(lat, lon, currentTarget.lat, currentTarget.lon);
+        
         document.getElementById("gps-dist").innerText = dist.toFixed(2);
 
-        let speed_mph = 0;
+        let speed_val = 0;
         if (position.coords.speed != null) {{
-            speed_mph = position.coords.speed * 2.23694; 
-            document.getElementById("gps-speed").innerText = speed_mph.toFixed(1);
+            speed_val = isMetric ? (position.coords.speed * 3.6) : (position.coords.speed * 2.23694); 
+            document.getElementById("gps-speed").innerText = speed_val.toFixed(1);
         }} else {{
             document.getElementById("gps-speed").innerText = "0.0";
         }}
 
-        if (position.coords.heading != null && speed_mph > 1) {{
-            document.getElementById("gps-heading").innerText = Math.round(position.coords.heading) + "°";
+        if (position.coords.heading != null) {{
+            document.getElementById("gps-heading").innerText = Math.round(heading) + "°";
         }}
 
-        if (speed_mph > 2) {{
-            const hours = dist / speed_mph;
+        // Calculate visual steering arrow (Target Bearing relative to Boat Heading)
+        let relativeBearing = targetBearing - heading;
+        let arrowEl = document.getElementById('nav-arrow');
+        if (arrowEl) arrowEl.style.transform = `rotate(${{relativeBearing}}deg)`;
+
+        if (speed_val > 2) {{
+            const hours = dist / speed_val;
             const mins = Math.round(hours * 60);
             document.getElementById("gps-eta").innerText = mins + " mins";
         }} else {{
-            document.getElementById("gps-eta").innerText = "Start moving to calculate...";
+            document.getElementById("gps-eta").innerText = "Start moving...";
         }}
     }}
 
     function handleError(error) {{
+        console.warn(error);
         document.getElementById("gps-eta").innerText = "GPS Access Denied/Unavailable";
     }}
     </script>
 </body>
 </html>
 """
-st.components.v1.html(nav_html, height=520)
+st.components.v1.html(nav_html, height=570)
 
 # --- Pre-Departure & Utilities ---
 st.markdown("---")
