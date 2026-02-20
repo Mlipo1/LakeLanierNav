@@ -20,7 +20,8 @@ with col_title:
     st.markdown('<h1 class="main-title">⚓ Lanier Navigator</h1>', unsafe_allow_html=True)
 
 with col_controls:
-    st.markdown('<div class="control-panel">', unsafe_allow_html=True)
+    # Removed the broken HTML wrapper. CSS will now style the toggles natively.
+    st.write("") # Slight spacing to push toggles down
     theme_lbl = "🌙 Dark Theme" if st.session_state.dark_mode else "☀️ Light Theme"
     new_theme = st.toggle(theme_lbl, value=st.session_state.dark_mode)
     if new_theme != st.session_state.dark_mode:
@@ -32,7 +33,6 @@ with col_controls:
     if new_unit != st.session_state.is_metric:
         st.session_state.is_metric = new_unit
         st.rerun()
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # --- Theme Definitions ---
 theme = {
@@ -46,19 +46,13 @@ theme = {
 
 st.markdown(f"""
     <style>
-    /* NEW: Prevent Mobile Horizontal Scrolling & Bouncing */
+    /* Prevent Mobile Horizontal Scrolling & Bouncing */
     html, body, [data-testid="stAppViewContainer"], .stApp {{
-        overflow-x: hidden !important;
-        max-width: 100vw !important;
+        overflow-x: hidden !important; max-width: 100vw !important;
     }}
-    
-    * {{
-        box-sizing: border-box !important;
-    }}
+    * {{ box-sizing: border-box !important; }}
 
-    /* Global App Background */
     .stApp {{ background-color: {theme['bg']} !important; }}
-    
     h3, div[data-testid="stWidgetLabel"] p, p {{ color: {theme['text']} !important; font-weight: 600; }}
     
     .main-title {{
@@ -66,13 +60,17 @@ st.markdown(f"""
         white-space: nowrap; margin-bottom: 0px; margin-top: 15px;
     }}
     
+    /* FIX: Style the Toggles Natively instead of using a broken wrapper */
+    div[data-testid="stToggle"] {{
+        background-color: {theme['card_bg']};
+        padding: 8px 15px;
+        border-radius: 20px;
+        border: 1px solid {theme['border']};
+        margin-bottom: 5px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }}
     div[data-testid="stToggle"] label div[role="switch"] {{ background-color: #a0aab5 !important; }}
     div[data-testid="stToggle"] label div[role="switch"][aria-checked="true"] {{ background-color: #3498db !important; }}
-    
-    .control-panel {{
-        background-color: {theme['card_bg']}; padding: 5px 15px; border-radius: 12px;
-        border: 2px solid {theme['border']}; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom: 20px;
-    }}
     
     .metrics-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px; }}
     .wind-grid {{ display: grid; grid-template-columns: 1fr 2fr; gap: 15px; margin-bottom: 25px; }}
@@ -86,7 +84,6 @@ st.markdown(f"""
     .metric-value {{ color: {theme['text']}; font-size: 2.2rem; font-weight: 900; line-height: 1.1; }}
     .metric-sub {{ font-size: 0.8rem; font-weight: 600; margin-top: 5px; color: {theme['sub_text']}; line-height: 1.3; }}
     .text-red {{ color: #e74c3c; }}
-    .text-blue {{ color: #3498db; }}
     
     .chop-safe {{ color: #2ecc71; font-weight: 800; }}
     .chop-warn {{ color: #f1c40f; font-weight: 800; }}
@@ -113,28 +110,18 @@ st.markdown(f"""
 
     /* Wave Animation CSS */
     .sim-wave-box {{
-        position: relative;
-        background: linear-gradient(to bottom, transparent 0%, rgba(52, 152, 219, 0.1) 100%);
-        height: 100px;
-        border-radius: 10px;
-        overflow: hidden;
-        margin-top: 15px;
-        width: 100%;
-        border-bottom: 3px solid #3498db;
+        position: relative; background: linear-gradient(to bottom, transparent 0%, rgba(52, 152, 219, 0.1) 100%);
+        height: 100px; border-radius: 10px; overflow: hidden; margin-top: 15px; width: 100%; border-bottom: 3px solid #3498db;
     }}
     .sim-wave-back {{
         position: absolute; bottom: 0; left: 0; width: 200%; height: 60px;
         background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,60 350,0 600,30 C850,60 1050,0 1200,30 L1200,60 L0,60 Z" fill="%232980b9" opacity="0.5"/></svg>') repeat-x;
-        background-size: 50% 100%;
-        transform-origin: bottom;
-        animation: wave-move var(--wave-speed-back, 3s) linear infinite reverse;
+        background-size: 50% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-back, 3s) linear infinite reverse;
     }}
     .sim-wave-front {{
         position: absolute; bottom: 0; left: 0; width: 200%; height: 50px;
         background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,0 350,60 600,30 C850,0 1050,60 1200,30 L1200,60 L0,60 Z" fill="%233498db" opacity="0.8"/></svg>') repeat-x;
-        background-size: 50% 100%;
-        transform-origin: bottom;
-        animation: wave-move var(--wave-speed-front, 2.5s) linear infinite;
+        background-size: 50% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-front, 2.5s) linear infinite;
     }}
     @keyframes wave-move {{
         0% {{ transform: translateX(0) scaleY(var(--wave-scale, 1)); }}
@@ -144,13 +131,14 @@ st.markdown(f"""
     /* MOBILE OVERRIDES */
     @media (max-width: 600px) {{
         .main-title {{ text-align: center; margin-bottom: 10px; }}
-        .control-panel {{ padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 5px; }}
         .metrics-grid {{ grid-template-columns: 1fr 1fr; gap: 10px; }}
         .metrics-grid .metric-card:nth-child(3) {{ grid-column: span 2; }}
         .wind-grid {{ grid-template-columns: 1fr 1fr; gap: 10px; }}
         .wind-container, .metric-card {{ padding: 15px 10px; }}
         .metric-value {{ font-size: 1.6rem !important; }}
         .wind-stats-flex {{ flex-direction: column; gap: 8px; margin-top: 10px; }}
+        /* Center Toggles on Mobile */
+        div[data-testid="stToggle"] {{ width: 100%; display: flex; justify-content: center; }}
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -239,8 +227,6 @@ def get_safety_alert(d, wave):
 d = fetch_data()
 trend_24h = fetch_level_trend()
 FULL_POOL_FT = 1071.0
-
-# Base wave calculation without vessel multiplier
 wave_height = round(0.016 * (d["wind_mph"] ** 1.5), 1)
 
 if st.session_state.is_metric:
@@ -340,7 +326,6 @@ if alerts:
 st.markdown("### 📷 Live Camera & Wave Simulator")
 
 cam_col, sim_col = st.columns([1, 1])
-
 with cam_col:
     st.markdown('<div class="metric-title" style="margin-bottom:10px;">🔴 LLSC Live Stream</div>', unsafe_allow_html=True)
     st.video("https://www.youtube.com/watch?v=QjJC9ORyOMQ")
