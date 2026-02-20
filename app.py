@@ -636,10 +636,16 @@ nav_html = f"""
         // 1. FOCUS MODE: Hide all other POIs
         markersLayer.clearLayers();
 
-        // 2. Lock Parent Window Scrolling (Hijack Streamlit scroll)
+        // 2. Lock Parent Window Scrolling (Aggressive target for Streamlit & iOS)
         try {{
-            window.parent.document.body.style.overflow = "hidden";
-            window.parent.document.querySelector('iframe').scrollIntoView({{behavior: "smooth"}});
+            if (window.frameElement) {{
+                window.frameElement.scrollIntoView({{behavior: "smooth", block: "center"}});
+            }}
+            let containers = window.parent.document.querySelectorAll('.stApp, [data-testid="stAppViewContainer"], .main, body, html');
+            containers.forEach(c => {{
+                c.style.setProperty('overflow', 'hidden', 'important');
+                c.style.setProperty('touch-action', 'none', 'important');
+            }});
         }} catch(e) {{ console.log("Cross-origin scroll lock bypassed"); }}
         
         // 3. Update UI
@@ -677,7 +683,13 @@ nav_html = f"""
         window.removeEventListener('deviceorientationabsolute', handleOrientation, true);
 
         // 1. Restore Parent Window Scrolling
-        try {{ window.parent.document.body.style.overflow = "auto"; }} catch(e) {{}}
+        try {{
+            let containers = window.parent.document.querySelectorAll('.stApp, [data-testid="stAppViewContainer"], .main, body, html');
+            containers.forEach(c => {{
+                c.style.setProperty('overflow', 'auto', 'important');
+                c.style.setProperty('touch-action', 'auto', 'important');
+            }});
+        }} catch(e) {{}}
 
         // 2. Restore all POIs
         renderMarkers();
