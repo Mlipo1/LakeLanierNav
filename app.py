@@ -20,7 +20,7 @@ with col_title:
     st.markdown('<h1 class="main-title">⚓ Lanier Navigator</h1>', unsafe_allow_html=True)
 
 with col_controls:
-    st.write("") 
+    # Removed the empty st.write("") that was creating a phantom dark box!
     st.markdown('<div class="control-panel">', unsafe_allow_html=True)
     
     theme_lbl = "🌙 Dark Theme" if st.session_state.dark_mode else "☀️ Light Theme"
@@ -62,23 +62,40 @@ st.markdown(f"""
     .main-title {{
         color: {theme['text']} !important;
         font-weight: 800;
-        font-size: clamp(1.8rem, 5vw, 2.5rem); /* Shrinks dynamically on mobile */
+        font-size: clamp(1.8rem, 5vw, 2.5rem);
         white-space: nowrap;
         margin-bottom: 0px;
+        margin-top: 15px;
     }}
     
     /* FIX: Force Toggle Track Visibility in Light Mode */
     div[data-testid="stToggle"] label div[role="switch"] {{ background-color: #a0aab5 !important; }}
     div[data-testid="stToggle"] label div[role="switch"][aria-checked="true"] {{ background-color: #3498db !important; }}
     
-    /* Control Panel Box - Made more compact for mobile */
+    /* Control Panel Box */
     .control-panel {{
         background-color: {theme['card_bg']};
-        padding: 10px 15px 5px 15px;
+        padding: 5px 15px;
         border-radius: 12px;
         border: 2px solid {theme['border']};
         box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         margin-bottom: 20px;
+    }}
+    
+    /* NEW: CSS Grid for 3 Top Metrics */
+    .metrics-grid {{
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 15px;
+        margin-bottom: 15px;
+    }}
+    
+    /* NEW: CSS Grid for Wind/Surface */
+    .wind-grid {{
+        display: grid;
+        grid-template-columns: 1fr 2fr;
+        gap: 15px;
+        margin-bottom: 25px;
     }}
     
     /* Beautiful Metric Cards */
@@ -88,12 +105,14 @@ st.markdown(f"""
         padding: 20px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.05);
         text-align: center;
-        margin-bottom: 15px;
         border: 1px solid {theme['border']};
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }}
-    .metric-title {{ color: {theme['sub_text']}; font-size: 0.95rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }}
-    .metric-value {{ color: {theme['text']}; font-size: 2.2rem; font-weight: 900; line-height: 1.2; }}
-    .metric-sub {{ font-size: 0.9rem; font-weight: 600; margin-top: 5px; color: {theme['sub_text']}; }}
+    .metric-title {{ color: {theme['sub_text']}; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }}
+    .metric-value {{ color: {theme['text']}; font-size: 2.2rem; font-weight: 900; line-height: 1.1; }}
+    .metric-sub {{ font-size: 0.8rem; font-weight: 600; margin-top: 5px; color: {theme['sub_text']}; }}
     .text-red {{ color: #e74c3c; }}
     .text-blue {{ color: #3498db; }}
     
@@ -104,50 +123,54 @@ st.markdown(f"""
     
     /* Responsive Flexbox Grid for Quick Info Pills */
     .pill-container {{
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        justify-content: center;
-        margin-bottom: 25px;
-        margin-top: 5px;
+        display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 25px; margin-top: 5px;
     }}
     .info-pill {{
-        background: {theme['card_bg']}; 
-        border: 1px solid {theme['border']};
-        border-radius: 30px; 
-        padding: 8px 15px; 
-        color: {theme['text']};
-        font-size: 0.85rem; 
-        font-weight: 600; 
-        text-align: center;
-        flex: 1 1 calc(33% - 10px); /* Tries to fit 3 across */
-        min-width: 130px; /* Forces wrap to 2 across on smaller mobile screens */
-        box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        background: {theme['card_bg']}; border: 1px solid {theme['border']};
+        border-radius: 30px; padding: 8px 15px; color: {theme['text']};
+        font-size: 0.85rem; font-weight: 600; text-align: center;
+        flex: 1 1 calc(33% - 10px); min-width: 130px; box-shadow: 0 2px 5px rgba(0,0,0,0.02);
     }}
     
     /* Wind Container */
     .wind-container {{
         background: linear-gradient(135deg, #2c3e50, #3498db);
-        border-radius: 20px; padding: 25px; color: white; text-align: center;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.15); margin-bottom: 20px; height: 100%;
+        border-radius: 20px; padding: 20px; color: white; text-align: center;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.15); height: 100%;
+        display: flex; flex-direction: column; justify-content: center; align-items: center;
     }}
     
-    /* Wind Animation */
     @keyframes wind-pulse {{
         0% {{ transform: scale(1) translateY(0px); opacity: 0.8; }}
         50% {{ transform: scale(1.1) translateY(-5px); opacity: 1; filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.8)); }}
         100% {{ transform: scale(1) translateY(0px); opacity: 0.8; }}
     }}
     .animated-wind {{
-        display: inline-block;
-        animation: wind-pulse 2s infinite ease-in-out;
-        transition: transform 0.5s ease;
+        display: inline-block; animation: wind-pulse 2s infinite ease-in-out; transition: transform 0.5s ease;
     }}
     
-    /* Mobile Override Tweaks */
+    .wind-stats-flex {{
+        margin-top: 15px; display: flex; justify-content: space-around;
+    }}
+
+    /* MOBILE OVERRIDES (Forces the 1x2 Grid) */
     @media (max-width: 600px) {{
-        .main-title {{ text-align: center; margin-bottom: 15px; }}
-        .control-panel {{ padding: 15px; display: flex; flex-direction: column; align-items: center; gap: 5px; }}
+        .main-title {{ text-align: center; margin-bottom: 10px; }}
+        .control-panel {{ padding: 10px; display: flex; flex-direction: column; align-items: center; gap: 5px; }}
+        
+        /* Forces Top Metrics into 2 Columns */
+        .metrics-grid {{ grid-template-columns: 1fr 1fr; gap: 10px; }}
+        /* Makes Air Temp span both columns cleanly at the bottom */
+        .metrics-grid .metric-card:nth-child(3) {{ grid-column: span 2; }}
+        
+        /* Forces Wind & Surface into 2 Columns */
+        .wind-grid {{ grid-template-columns: 1fr 1fr; gap: 10px; }}
+        
+        .wind-container, .metric-card {{ padding: 15px 10px; }}
+        .metric-value {{ font-size: 1.6rem !important; }}
+        
+        /* Stacks Sustained/Gusts vertically so they fit next to the Wind Direction */
+        .wind-stats-flex {{ flex-direction: column; gap: 8px; margin-top: 10px; }}
     }}
     </style>
     """, unsafe_allow_html=True)
@@ -181,7 +204,7 @@ def fetch_data():
         data["wind_dir"] = current['wind_direction_10m']
         data["gusts"] = current['wind_gusts_10m']
         data["uv"] = current['uv_index']
-        data["visibility"] = current['visibility'] / 1609.34 # meters to miles
+        data["visibility"] = current['visibility'] / 1609.34
         data["pressure"] = current['surface_pressure']
         data["clouds"] = current['cloud_cover']
         data["rain_chance"] = daily['precipitation_probability_max'][0]
@@ -213,26 +236,19 @@ def get_compass_dir(degrees):
 def calculate_chop(wind, gusts):
     avg_force = (wind + gusts) / 2
     if avg_force < 5:
-        return "Glassy (Perfect for wakeboarding)", "chop-safe"
+        return "Glassy", "chop-safe"
     elif avg_force < 12:
         return "Light Chop", "chop-safe"
     elif avg_force < 20:
-        return "Choppy (Caution for smaller boats)", "chop-warn"
+        return "Choppy (Small Boat Caution)", "chop-warn"
     else:
         return "Rough / Whitecaps", "chop-danger"
 
 d = fetch_data()
-
-# --- Unit Conversions & Formatting ---
 FULL_POOL_FT = 1071.0
 
 if st.session_state.is_metric:
-    unit_dist = "m"
-    unit_temp = "°C"
-    unit_speed = "km/h"
-    unit_vis = "km"
-    unit_press = "hPa"
-    
+    unit_dist, unit_temp, unit_speed, unit_vis, unit_press = "m", "°C", "km/h", "km", "hPa"
     disp_level = round(d['level'] * 0.3048, 2) if d['level'] != "N/A" else "N/A"
     disp_pool_diff = round(abs((d['level'] - FULL_POOL_FT) * 0.3048), 2) if d['level'] != "N/A" else "N/A"
     disp_water_temp = round((d['water_temp'] - 32) * 5/9, 1)
@@ -242,12 +258,7 @@ if st.session_state.is_metric:
     disp_vis = round(d['visibility'] * 1.60934, 1) if d['visibility'] != "N/A" else "N/A"
     disp_press = round(d['pressure'], 1) if d['pressure'] != "N/A" else "N/A"
 else:
-    unit_dist = "'"
-    unit_temp = "°F"
-    unit_speed = "mph"
-    unit_vis = "mi"
-    unit_press = "inHg"
-    
+    unit_dist, unit_temp, unit_speed, unit_vis, unit_press = "'", "°F", "mph", "mi", "inHg"
     disp_level = round(d['level'], 2) if d['level'] != "N/A" else "N/A"
     disp_pool_diff = round(abs(d['level'] - FULL_POOL_FT), 2) if d['level'] != "N/A" else "N/A"
     disp_water_temp = d['water_temp']
@@ -259,23 +270,35 @@ else:
 
 direction_text = get_compass_dir(d['wind_dir'])
 chop_text, chop_class = calculate_chop(d['wind_mph'], d['gusts'])
+level_diff_html = f"<span class='text-red'>↓ {disp_pool_diff}{unit_dist}</span>" if disp_level != "N/A" else ""
+level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
+wind_rotation = (d['wind_dir'] + 180) % 360
 
-# --- UI Rendering ---
+# --- UI Rendering (Now Using Pure HTML/CSS Grid) ---
 
-# Row 1: Primary Stats 
-c1, c2, c3 = st.columns(3)
-with c1:
-    level_diff_html = f"<span class='text-red'>↓ {disp_pool_diff} {unit_dist}</span>" if disp_level != "N/A" else ""
-    level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
-    st.markdown(f'<div class="metric-card"><div class="metric-title">Lake Level</div><div class="metric-value">{level_val}</div><div class="metric-sub">{level_diff_html} (Full)</div></div>', unsafe_allow_html=True)
+# 1. Top Metrics (Lake Level, Water Temp, Air Temp)
+top_html = f"""
+<div class="metrics-grid">
+    <div class="metric-card">
+        <div class="metric-title">Lake Level</div>
+        <div class="metric-value">{level_val}</div>
+        <div class="metric-sub">{level_diff_html} (Full)</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-title">Water Temp</div>
+        <div class="metric-value text-blue">{disp_water_temp}{unit_temp}</div>
+        <div class="metric-sub">Surface</div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-title">Air Temp</div>
+        <div class="metric-value">{disp_air_temp}{unit_temp}</div>
+        <div class="metric-sub">Flowery Branch</div>
+    </div>
+</div>
+"""
+st.markdown(top_html, unsafe_allow_html=True)
 
-with c2:
-    st.markdown(f'<div class="metric-card"><div class="metric-title">Water Temp</div><div class="metric-value text-blue">{disp_water_temp}{unit_temp}</div><div class="metric-sub">Surface</div></div>', unsafe_allow_html=True)
-
-with c3:
-    st.markdown(f'<div class="metric-card"><div class="metric-title">Air Temp</div><div class="metric-value">{disp_air_temp}{unit_temp}</div><div class="metric-sub">Flowery Branch</div></div>', unsafe_allow_html=True)
-
-# Row 1.5: Quick Boating Info (Now using purely responsive Flexbox HTML instead of Streamlit Columns)
+# 2. Quick Boating Info (Flexbox Pills)
 pill_html = f"""
 <div class="pill-container">
     <div class="info-pill">🌅 Sun: {d["sunrise"]} / {d["sunset"]}</div>
@@ -288,42 +311,38 @@ pill_html = f"""
 """
 st.markdown(pill_html, unsafe_allow_html=True)
 
-# Row 2: Animated Wind & Surface Conditions
+# 3. Wind & Surface Simulation
 st.markdown("### 💨 Live Wind & Surface Simulation")
-cc1, cc2 = st.columns([1, 2])
-with cc1:
-    wind_rotation = (d['wind_dir'] + 180) % 360
-    st.markdown(f"""
+wind_html = f"""
+<div class="wind-grid">
     <div class="wind-container">
-        <div style="font-size: 0.9rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 10px; opacity: 0.9;">WIND DIRECTION</div>
+        <div style="font-size: 0.8rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; opacity: 0.9;">WIND DIR</div>
         <div style="transform: rotate({wind_rotation}deg);" class="animated-wind">
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <svg width="45" height="45" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="12" y1="19" x2="12" y2="5"></line>
                 <polyline points="5 12 12 5 19 12"></polyline>
             </svg>
         </div>
-        <div style="font-size: 1.8rem; font-weight: 900; margin-top: 10px;">{direction_text}</div>
-        <div style="font-size: 1rem; opacity: 0.8;">{d['wind_dir']}°</div>
+        <div style="font-size: 1.5rem; font-weight: 900; margin-top: 8px;">{direction_text}</div>
+        <div style="font-size: 0.9rem; opacity: 0.8;">{d['wind_dir']}°</div>
     </div>
-    """, unsafe_allow_html=True)
-
-with cc2:
-    st.markdown(f"""
-    <div class="metric-card" style="height: 83%; display: flex; flex-direction: column; justify-content: center;">
+    <div class="metric-card" style="margin-bottom: 0;">
         <div class="metric-title">Surface Condition</div>
-        <div class="metric-value {chop_class}" style="font-size: 1.4rem; margin-top: 10px;">{chop_text}</div>
-        <div style="margin-top: 20px; display: flex; justify-content: space-around;">
+        <div class="metric-value {chop_class}" style="font-size: 1.15rem; margin-top: 5px;">{chop_text}</div>
+        <div class="wind-stats-flex">
             <div>
-                <div class="metric-title">Sustained</div>
-                <div style="font-size: 1.4rem; font-weight: bold; color: {theme['text']};">{disp_wind} <span style="font-size:0.8rem;">{unit_speed}</span></div>
+                <div class="metric-title" style="font-size: 0.75rem;">Sustained</div>
+                <div style="font-size: 1.1rem; font-weight: bold; color: {theme['text']};">{disp_wind} <span style="font-size:0.75rem;">{unit_speed}</span></div>
             </div>
             <div>
-                <div class="metric-title">Gusts</div>
-                <div style="font-size: 1.4rem; font-weight: bold; color: #e74c3c;">{disp_gusts} <span style="font-size:0.8rem;">{unit_speed}</span></div>
+                <div class="metric-title" style="font-size: 0.75rem;">Gusts</div>
+                <div style="font-size: 1.1rem; font-weight: bold; color: #e74c3c;">{disp_gusts} <span style="font-size:0.75rem;">{unit_speed}</span></div>
             </div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+</div>
+"""
+st.markdown(wind_html, unsafe_allow_html=True)
 
 # Row 3: Interactive Map
 st.markdown("### 📍 Dock & Dine GPS")
@@ -341,7 +360,6 @@ for res in restaurants:
     folium.Marker([res['lat'], res['lon']], popup=res['name'], icon=folium.Icon(color='blue', icon='anchor', prefix='fa')).add_to(m)
 st_folium(m, width="100%", height=400)
 
-# Row 4: Pre-Departure Checklist
 st.markdown("---")
 with st.expander("✅ Pre-Departure Checklist (Don't sink the boat!)"):
     st.checkbox("Hull drain plug securely installed")
