@@ -467,14 +467,16 @@ nav_html = f"""
         .marker-fuel {{ border-color: #f39c12; background: #ffeaa7; }}
         .marker-marina {{ border-color: #3498db; background: #81ecec; }}
         
-        /* Smart Zoom Labels */
+        /* Smart Zoom Labels - ADDED !important tags to override Leaflet inline styles */
         .poi-label {{
-            background: transparent; border: none; box-shadow: none; color: {theme['text']};
-            font-weight: 900; font-size: 0.9rem;
-            text-shadow: 2px 2px 0 {theme['bg']}, -2px -2px 0 {theme['bg']}, 2px -2px 0 {theme['bg']}, -2px 2px 0 {theme['bg']};
-            opacity: 0; transition: opacity 0.3s ease; pointer-events: none;
+            background: transparent !important; border: none !important; box-shadow: none !important; 
+            color: {theme['text']} !important;
+            font-weight: 900 !important; font-size: 0.9rem !important;
+            text-shadow: 2px 2px 0 {theme['bg']}, -2px -2px 0 {theme['bg']}, 2px -2px 0 {theme['bg']}, -2px 2px 0 {theme['bg']} !important;
+            opacity: 0 !important; pointer-events: none !important;
+            transition: opacity 0.3s ease !important;
         }}
-        #map.show-labels .poi-label {{ opacity: 1; }}
+        #map.show-labels .poi-label {{ opacity: 1 !important; }}
 
         /* Navigation Arrow Icon */
         .nav-arrow-marker {{
@@ -607,11 +609,13 @@ nav_html = f"""
     }};
     renderMarkers();
 
-    // Smart Zoom Label Logic
-    map.on('zoomend', function() {{
+    // Smart Zoom Label Logic - WITH INITIALIZATION CHECK
+    function handleZoom() {{
         if (map.getZoom() >= 13) {{ document.getElementById('map').classList.add('show-labels'); }} 
         else {{ document.getElementById('map').classList.remove('show-labels'); }}
-    }});
+    }}
+    map.on('zoomend', handleZoom);
+    handleZoom(); // Run immediately on load so they start hidden!
 
     // Search Engine
     window.filterSearch = function() {{
