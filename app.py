@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import folium
+from streamlit_folium import st_folium
 import requests
 import re
 import json
@@ -8,11 +9,17 @@ from datetime import datetime, timedelta
 
 st.set_page_config(page_title="Lanier Navigator", layout="centered", page_icon="⚓")
 
-# --- Bulletproof State Management ---
+# --- Persistent State Management (URL Query Params) ---
+# 1. Initialize state from saved URL parameters (Acts like cookies)
 if "dark_mode" not in st.session_state:
-    st.session_state.dark_mode = True 
+    # Default to dark mode if no saved preference exists
+    saved_theme = st.query_params.get("theme", "dark") 
+    st.session_state.dark_mode = (saved_theme == "dark")
+    
 if "is_metric" not in st.session_state:
-    st.session_state.is_metric = False
+    # Default to imperial if no saved preference exists
+    saved_unit = st.query_params.get("units", "imperial") 
+    st.session_state.is_metric = (saved_unit == "metric")
 
 # --- Data Fetching Functions ---
 @st.cache_data(ttl=300) 
@@ -209,16 +216,23 @@ with col_title:
 
 with col_controls:
     st.write("") 
+    
+    # Theme Toggle
     theme_lbl = "🌙 Dark Theme" if st.session_state.dark_mode else "☀️ Light Theme"
     new_theme = st.toggle(theme_lbl, value=st.session_state.dark_mode)
     if new_theme != st.session_state.dark_mode:
         st.session_state.dark_mode = new_theme
+        # Silently update the URL so the browser remembers this choice
+        st.query_params["theme"] = "dark" if new_theme else "light" 
         st.rerun()
         
+    # Units Toggle
     unit_lbl = "📏 Metric Units" if st.session_state.is_metric else "📏 Imperial Units"
     new_unit = st.toggle(unit_lbl, value=st.session_state.is_metric)
     if new_unit != st.session_state.is_metric:
         st.session_state.is_metric = new_unit
+        # Silently update the URL so the browser remembers this choice
+        st.query_params["units"] = "metric" if new_unit else "imperial" 
         st.rerun()
 
 # --- TOP PRIORITY: SAFETY BANNER ---
