@@ -139,7 +139,7 @@ def calculate_boat_score(d, wave):
 
     final_score = max(0, min(100, round(score)))
     return final_score, reasons
-    
+
 def get_safety_alert(d, wave):
     alerts = []
     if d["wind_mph"] >= 20 or d["gusts"] >= 30: 
@@ -335,41 +335,81 @@ if alerts:
     </details>
     """, unsafe_allow_html=True)
 
-# --- Top Level HTML Formatting ---
+# --- Metric Card Displays ---
 trend_arrow = "↑" if trend_24h >= 0 else "↓"
-trend_color = "#2ecc71" if trend_24h >= 0 else "#e74c3c"
-trend_html = f"<span style='color:{trend_color}; font-weight:700;'>{trend_arrow} {abs(trend_24h)} ft (24h)</span>"
+trend_html = f"<span style='color:{'#2ecc71' if trend_24h >= 0 else '#e74c3c'}; font-weight:700;'>{trend_arrow} {abs(trend_24h)} ft</span>"
+uv_card_class = "uv-high-card" if d['uv'] > 7 else ""
 
-level_diff_html = f"{trend_html}<br><span class='text-red'>↓ {disp_pool_diff}{unit_dist}</span>" if disp_level != "N/A" else ""
-level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
-temp_color = "#3498db" if disp_water_temp < 60 else "#f39c12" if disp_water_temp < 80 else "#e74c3c"
+# Dynamic Air Temp Text Color
+air_temp_color = theme['text']
+if d['air_temp'] != "N/A":
+    if d['air_temp'] >= 85: air_temp_color = "#ff7675" # Hot (Red)
+    elif d['air_temp'] >= 75: air_temp_color = "#fdcb6e" # Warm (Orange)
+    elif d['air_temp'] <= 45: air_temp_color = "#74b9ff" # Cold (Blue)
+    elif d['air_temp'] <= 32: air_temp_color = "#81ecec" # Freezing (Cyan)
 
 st.markdown(f"""
 <div class="metrics-grid">
     <div class="metric-card">
         <div class="metric-title">Lake Level</div>
         <div class="metric-value">{level_val}</div>
-        <div class="metric-sub">{level_diff_html} (Full)</div>
+        <div class="metric-sub">{trend_html} (24h)</div>
     </div>
     <div class="metric-card" style="background: {water_temp_bg};">
         <div class="metric-title">Water Temp</div>
         <div class="metric-value" style="color:{temp_color};">{disp_water_temp}{unit_temp}</div>
         <div class="metric-sub">Surface</div>
     </div>
-    <div class="metric-card" style="background: {temp_bg};">
+    <div class="metric-card" style="background: {air_temp_card_bg} !important;">
         <div class="metric-title">Air Temp</div>
-        <div class="metric-value">{disp_air_temp}{unit_temp}</div>
+        <div class="metric-value" style="color:{air_temp_color};">{disp_air_temp}{unit_temp}</div>
         <div class="metric-sub">Flowery Branch</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
+
+# --- Consolidated Info Pills & Sunset Progress ---
+try:
+    # Parse times to calculate daylight progress
+    sr_time = datetime.strptime(d["sunrise"], "%I:%M %p").time()
+    ss_time = datetime.strptime(d["sunset"], "%I:%M %p").time()
+    
+    # Get approximate EST current time (UTC - 5 hours)
+    now_est = datetime.utcnow() - timedelta(hours=5)
+    curr_time = now_est.time()
+    
+    # Convert to minutes for percentage math
+    sr_mins = sr_time.hour * 60 + sr_time.minute
+    ss_mins = ss_time.hour * 60 + ss_time.minute
+    curr_mins = curr_time.hour * 60 + curr_time.minute
+    
+    total_daylight = ss_mins - sr_mins
+    
+    # Generate dynamic label and progress percentage
+    if curr_mins < sr_mins:
+        sun_prog = 0
+        sun_lbl = f"🌅 Rises in {(sr_mins - curr_mins) // 60}h {(sr_mins - curr_mins) % 60}m"
+    elif curr_mins > ss_mins:
+        sun_prog = 100
+        sun_lbl = "🌙 Sun has set"
+    else:
+        elapsed = curr_mins - sr_mins
+        sun_prog = int((elapsed / total_daylight) * 100)
+        rem = ss_mins - curr_mins
+        sun_lbl = f"🌇 {rem // 60}h {rem % 60}m till Sunset"
+except:
+    sun_prog = 0
+    sun_lbl = f"🌅 {d['sunrise']} / {d['sunset']}"
+
+# Dynamic background gradient that acts as a loading bar filling left-to-right
+sun_bg = f"background: linear-gradient(90deg, rgba(243, 156, 18, 0.25) {sun_prog}%, {theme['card_bg']} {sun_prog}%);"
 
 rain_anim_class = "rain-anim" if d['rain_chance'] > 30 else ""
 fog_anim_class = "fog-anim" if d['visibility'] != "N/A" and d['visibility'] < 5 else ""
 
 st.markdown(f"""
 <div class="pill-container">
-    <div class="info-pill"><span class="sun-anim-icon">☀️</span> Sun: {d["sunrise"]} / {d["sunset"]}</div>
+    <div class="info-pill" style="{sun_bg}">{sun_lbl}</div>
     <div class="info-pill {rain_anim_class}">🌧️ Rain: {d["rain_chance"]}%</div>
     <div class="info-pill {fog_anim_class}">🌫️ Vis: {disp_vis} {unit_vis}</div>
     <div class="info-pill">🌡️ Pres: {disp_press} {unit_press}</div>
@@ -377,7 +417,6 @@ st.markdown(f"""
     <div class="info-pill {uv_anim_class}">☀️ UV: {round(d["uv"],1)}</div>
 </div>
 """, unsafe_allow_html=True)
-
 # --- Boating Score ---
 st.markdown("### 🚦 Boating Conditions")
 boat_score, score_reasons = calculate_boat_score(d, wave_height)
