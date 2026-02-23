@@ -337,8 +337,12 @@ if alerts:
 
 # --- Metric Card Displays ---
 trend_arrow = "↑" if trend_24h >= 0 else "↓"
-trend_html = f"<span style='color:{'#2ecc71' if trend_24h >= 0 else '#e74c3c'}; font-weight:700;'>{trend_arrow} {abs(trend_24h)} ft</span>"
+trend_html = f"<span style='color:{'#2ecc71' if trend_24h >= 0 else '#e74c3c'}; font-weight:700;'>{trend_arrow} {abs(trend_24h)} {unit_dist}</span>"
 uv_card_class = "uv-high-card" if d['uv'] > 7 else ""
+
+# Define the display strings and colors for the cards
+level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
+temp_color = "#3498db" if disp_water_temp < 60 else "#f39c12" if disp_water_temp < 80 else "#e74c3c"
 
 # Dynamic Air Temp Text Color
 air_temp_color = theme['text']
