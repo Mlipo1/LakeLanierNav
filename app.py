@@ -427,24 +427,34 @@ try:
     
     total_daylight = ss_mins - sr_mins
     
+    # Determine the base string so times are always visible
+    base_sun_str = f"🌅 {d['sunrise']} | 🌇 {d['sunset']}"
+    
     # Generate dynamic label and progress percentage
     if curr_mins < sr_mins:
+        # Before sunrise
         sun_prog = 0
-        sun_lbl = f"🌅 Rises in {(sr_mins - curr_mins) // 60}h {(sr_mins - curr_mins) % 60}m"
+        rem_hrs = (sr_mins - curr_mins) // 60
+        rem_mins = (sr_mins - curr_mins) % 60
+        sun_lbl = f"{base_sun_str}<br><span style='font-size:0.7rem; opacity:0.8;'>Rises in {rem_hrs}h {rem_mins}m</span>"
+        sun_bg = f"background: linear-gradient(90deg, rgba(253, 203, 110, 0.4) {sun_prog}%, {theme['card_bg']} {sun_prog}%);"
     elif curr_mins > ss_mins:
+        # After sunset (Night Mode)
         sun_prog = 100
-        sun_lbl = "🌙 Sun has set"
+        sun_lbl = f"{base_sun_str}<br><span style='font-size:0.7rem; opacity:0.8; color:#74b9ff;'>🌙 Night Operations</span>"
+        # Switch to a dark/cool night gradient instead of the bright sun color
+        sun_bg = f"background: linear-gradient(90deg, rgba(41, 128, 185, 0.2) 100%, {theme['card_bg']} 100%);"
     else:
+        # During daylight
         elapsed = curr_mins - sr_mins
         sun_prog = int((elapsed / total_daylight) * 100)
         rem = ss_mins - curr_mins
-        sun_lbl = f"🌇 {rem // 60}h {rem % 60}m till Sunset"
+        sun_lbl = f"{base_sun_str}<br><span style='font-size:0.7rem; opacity:0.8;'>{rem // 60}h {rem % 60}m till Sunset</span>"
+        sun_bg = f"background: linear-gradient(90deg, rgba(253, 203, 110, 0.4) {sun_prog}%, {theme['card_bg']} {sun_prog}%);"
 except:
     sun_prog = 0
-    sun_lbl = f"🌅 {d['sunrise']} / {d['sunset']}"
-
-# Dynamic background gradient: Brightened the golden yellow so it doesn't look brown
-sun_bg = f"background: linear-gradient(90deg, rgba(253, 203, 110, 0.4) {sun_prog}%, {theme['card_bg']} {sun_prog}%);"
+    sun_lbl = f"🌅 {d['sunrise']} / 🌇 {d['sunset']}"
+    sun_bg = f"background: {theme['card_bg']};"
 
 rain_anim_class = "rain-anim" if d['rain_chance'] > 30 else ""
 fog_anim_class = "fog-anim" if d['visibility'] != "N/A" and d['visibility'] < 5 else ""
@@ -452,12 +462,12 @@ uv_anim_class = "uv-pulse" if d['uv'] > 6 else ""
 
 st.markdown(f"""
 <div class="pill-container">
-    <div class="info-pill" style="{sun_bg}">{sun_lbl}</div>
-    <div class="info-pill {rain_anim_class}">🌧️ Rain: {d["rain_chance"]}%</div>
-    <div class="info-pill {fog_anim_class}">🌫️ Vis: {disp_vis} {unit_vis}</div>
-    <div class="info-pill">🌡️ Pres: {disp_press} {unit_press}</div>
-    <div class="info-pill">☁️ Clouds: {d["clouds"]}%</div>
-    <div class="info-pill {uv_anim_class}">☀️ UV: {round(d["uv"],1)}</div>
+    <div class="info-pill" style="{sun_bg} line-height: 1.2; padding: 6px 15px;">{sun_lbl}</div>
+    <div class="info-pill {rain_anim_class}" style="display: flex; align-items: center; justify-content: center;">🌧️ Rain: {d["rain_chance"]}%</div>
+    <div class="info-pill {fog_anim_class}" style="display: flex; align-items: center; justify-content: center;">🌫️ Vis: {disp_vis} {unit_vis}</div>
+    <div class="info-pill" style="display: flex; align-items: center; justify-content: center;">🌡️ Pres: {disp_press} {unit_press}</div>
+    <div class="info-pill" style="display: flex; align-items: center; justify-content: center;">☁️ Clouds: {d["clouds"]}%</div>
+    <div class="info-pill {uv_anim_class}" style="display: flex; align-items: center; justify-content: center;">☀️ UV: {round(d["uv"],1)}</div>
 </div>
 """, unsafe_allow_html=True)
 
