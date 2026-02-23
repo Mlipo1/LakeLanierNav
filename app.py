@@ -10,14 +10,11 @@ from datetime import datetime, timedelta
 st.set_page_config(page_title="Lanier Navigator", layout="centered", page_icon="⚓")
 
 # --- Persistent State Management (URL Query Params) ---
-# 1. Initialize state from saved URL parameters (Acts like cookies)
 if "dark_mode" not in st.session_state:
-    # Default to dark mode if no saved preference exists
     saved_theme = st.query_params.get("theme", "dark") 
     st.session_state.dark_mode = (saved_theme == "dark")
     
 if "is_metric" not in st.session_state:
-    # Default to imperial if no saved preference exists
     saved_unit = st.query_params.get("units", "imperial") 
     st.session_state.is_metric = (saved_unit == "metric")
 
@@ -62,7 +59,7 @@ def fetch_data():
             scraped_temp = int(match.group(1))
             if 35 <= scraped_temp <= 95: data["water_temp"] = scraped_temp
     except Exception: pass 
-    
+
     # NEW: Add Last Updated Timestamp
     now_est = datetime.utcnow() - timedelta(hours=5)
     data["last_updated"] = now_est.strftime("%I:%M %p")
@@ -97,21 +94,21 @@ def calculate_boat_score(d, wave):
     score = 100
     reasons = []
 
-    # 1. Wind & Gusts (Safety & Comfort)
+    # 1. Wind & Gusts
     wind_penalty = d["wind_mph"] * 1.5
     gust_penalty = (d["gusts"] - d["wind_mph"]) * 1.0 if d["gusts"] > d["wind_mph"] else 0
     score -= (wind_penalty + gust_penalty)
     if d["wind_mph"] > 12: reasons.append("Significant wind/gusts")
 
-    # 2. Rain & Clouds (Comfort)
+    # 2. Rain & Clouds
     score -= (d["rain_chance"] * 0.6)
     if d["rain_chance"] > 40: reasons.append(f"{d['rain_chance']}% Rain chance")
 
-    # 3. Wave Height (Safety)
+    # 3. Wave Height
     score -= (wave * 10)
     if wave > 1.5: reasons.append("High surface chop")
 
-    # 4. Water Temp (Safety & Comfort - Open Water Standards)
+    # 4. Water Temp 
     wt = d["water_temp"]
     if wt < 50:
         score -= 25
@@ -123,20 +120,18 @@ def calculate_boat_score(d, wave):
         score -= 5
         reasons.append("Cool (60-70°F): Can become uncomfortable")
 
-    # 5. Visibility (Safety)
+    # 5. Visibility 
     if d["visibility"] != "N/A" and d["visibility"] < 4:
         score -= 10
         reasons.append("Low visibility/Fog")
 
-    # 6. Lake Level (Hazard)
+    # 6. Lake Level 
     if d['level'] != "N/A":
         if d['level'] < (FULL_POOL_FT - 3):
-            # Lake is more than 3 feet low
             level_diff = FULL_POOL_FT - d['level']
             score -= (level_diff * 2)
             reasons.append("Low Water: Watch for shallow shoals")
         elif d['level'] > (FULL_POOL_FT + 3):
-            # Lake is more than 3 feet high
             level_diff = d['level'] - FULL_POOL_FT
             score -= (level_diff * 2)
             reasons.append("High Water: Watch for floating debris")
@@ -147,7 +142,6 @@ def calculate_boat_score(d, wave):
 def get_safety_alert(d, wave):
     alerts = []
     
-    # Existing Weather & Wave Alerts
     if d["wind_mph"] >= 20 or d["gusts"] >= 30: 
         alerts.append("🌬️ <strong>High Wind Advisory:</strong> Dangerous gusts detected. Small craft caution.")
     if d["rain_chance"] >= 70: 
@@ -157,15 +151,12 @@ def get_safety_alert(d, wave):
     if wave >= 3: 
         alerts.append("🌊 <strong>Rough Chop:</strong> Estimated wave heights exceed 3 feet.")
     
-    # NEW: Extreme Cold Water Alert
     if d["water_temp"] < 50:
         alerts.append("🥶 <strong>Extreme Cold Water:</strong> Water is <50°F. Immediate life-threatening hypothermia risk if submerged. Wear life jackets.")
         
-    # NEW: Freezing Conditions / Ramp Ice
     if d["air_temp"] != "N/A" and d["air_temp"] <= 32:
-        alerts.append("❄️ <strong>Freezing Conditions:</strong> Watch for black ice on boat ramps and highly slippery fiberglass decks.")
+        alerts.append("❄️ <strong>Freezing Conditions:</strong> Watch for black ice on boat ramps and highly slippery decks.")
         
-    # NEW: Dynamic Night Operations Warning
     try:
         now_est = datetime.utcnow() - timedelta(hours=5)
         curr_mins = now_est.time().hour * 60 + now_est.time().minute
@@ -173,13 +164,12 @@ def get_safety_alert(d, wave):
         ss_mins = ss_time.hour * 60 + ss_time.minute
         
         if curr_mins >= ss_mins:
-            alerts.append("🌙 <strong>Night Operations:</strong> Sun has set. Navigational lights (360-degree white, red/green bow) are required by law.")
+            alerts.append("🌙 <strong>Night Operations:</strong> Sun has set. Navigational lights are required by law.")
         elif (ss_mins - curr_mins) <= 45:
             alerts.append("🌇 <strong>Approaching Sunset:</strong> Less than 45 minutes of daylight. Prepare navigation lights.")
     except:
         pass
     
-    # Lake Level Alerts
     if d['level'] != "N/A":
         if d['level'] < (FULL_POOL_FT - 3):
             alerts.append("📉 <strong>Low Water Hazard:</strong> Lake is >3ft down. Watch for newly exposed shoals. Fixed docks and ramps may be unusable.")
@@ -233,23 +223,9 @@ theme = {
 }
 
 # --- Dynamic Color & Animation Variables ---
-# Determine Dynamic Backgrounds for Temperatures
-temp_bg = theme['card_bg']
-if d['air_temp'] != "N/A":
-    if d['air_temp'] >= 80: temp_bg = "linear-gradient(135deg, #2c1a1a, #3a2020)" if st.session_state.dark_mode else "linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)"
-    elif d['air_temp'] <= 55: temp_bg = "linear-gradient(135deg, #1a252c, #1f303a)" if st.session_state.dark_mode else "linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)"
-
-water_temp_bg = theme['card_bg']
-if d['water_temp'] >= 80: water_temp_bg = "linear-gradient(135deg, #2c1a1a, #3a2020)" if st.session_state.dark_mode else "linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)"
-elif d['water_temp'] <= 60: water_temp_bg = "linear-gradient(135deg, #1a252c, #1f303a)" if st.session_state.dark_mode else "linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)"
-
-# Determine Wind & UV Animations
 is_windy = d['wind_mph'] >= 15 or d['gusts'] >= 20
 wind_anim_class = "wind-shake" if is_windy else "animated-wind"
 wind_icon_color = "#ff7675" if is_windy else "#ffffff"
-
-is_high_uv = d['uv'] > 6
-uv_anim_class = "uv-pulse" if is_high_uv else ""
 
 st.markdown(f"""
     <style>
@@ -279,39 +255,31 @@ st.markdown(f"""
     .pill-container {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 25px; margin-top: 5px; }}
     .info-pill {{ background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 30px; padding: 8px 15px; color: {theme['text']}; font-size: 0.85rem; font-weight: 600; text-align: center; flex: 1 1 calc(33% - 10px); min-width: 130px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); transition: all 0.3s; }}
     
-    /* NEW: Score Reasoning Pills */
     .reason-pill {{ display: inline-block; background: rgba(0,0,0,0.1); padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; margin: 3px; font-weight: 700; border: 1px solid rgba(128,128,128,0.3); color: {theme['text']}; }}
 
     .wind-container {{ background: linear-gradient(135deg, #2c3e50, #3498db); border-radius: 20px; padding: 20px; color: white; box-shadow: 0 10px 20px rgba(0,0,0,0.15); margin-bottom: 25px; }}
     .wind-merged {{ display: flex; flex-direction: row; align-items: center; justify-content: space-around; gap: 20px; width: 100%; }}
     .wind-stats-box {{ background: rgba(0,0,0,0.25); padding: 15px 25px; border-radius: 15px; min-width: 50%; text-align: center; }}
     
-    /* Wind Animations */
     @keyframes wind-pulse {{ 0% {{ transform: translateY(0px); opacity: 0.8; }} 50% {{ transform: translateY(-8px); opacity: 1; filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.8)); }} 100% {{ transform: translateY(0px); opacity: 0.8; }} }}
     .animated-wind {{ display: inline-block; animation: wind-pulse 2s infinite ease-in-out; }}
     
     @keyframes wind-shake-anim {{ 0% {{ transform: translateY(0px) rotate(0deg); }} 25% {{ transform: translateY(-3px) rotate(15deg); }} 50% {{ transform: translateY(-6px) rotate(0deg); }} 75% {{ transform: translateY(-3px) rotate(-15deg); }} 100% {{ transform: translateY(0px) rotate(0deg); }} }}
     .wind-shake {{ display: inline-block; animation: wind-shake-anim 0.4s infinite ease-in-out; filter: drop-shadow(0px 0px 10px rgba(255, 118, 117, 0.9)); }}
 
-    /* UV Animation */
     @keyframes uv-pulse-anim {{ 0% {{ box-shadow: 0 0 0 0 rgba(241, 196, 15, 0.7); }} 70% {{ box-shadow: 0 0 0 10px rgba(241, 196, 15, 0); }} 100% {{ box-shadow: 0 0 0 0 rgba(241, 196, 15, 0); }} }}
     .uv-pulse {{ animation: uv-pulse-anim 2s infinite; border-color: #f1c40f !important; color: #f1c40f !important; }}
 
-    /* Wave Simulator - Restored to natural size */
     .sim-wave-box {{ position: relative; background: linear-gradient(to bottom, transparent 0%, rgba(52, 152, 219, 0.1) 100%); height: 100px; border-radius: 10px; overflow: hidden; margin-top: 15px; width: 100%; border-bottom: 3px solid #3498db; }}
     .sim-wave-back {{ position: absolute; bottom: 0; left: 0; width: 200%; height: 60px; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,60 350,0 600,30 C850,60 1050,0 1200,30 L1200,60 L0,60 Z" fill="%232980b9" opacity="0.5"/></svg>') repeat-x; background-size: 50% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-back, 3s) linear infinite reverse; }}
     .sim-wave-front {{ position: absolute; bottom: 0; left: 0; width: 200%; height: 50px; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,0 350,60 600,30 C850,0 1050,60 1200,30 L1200,60 L0,60 Z" fill="%233498db" opacity="0.8"/></svg>') repeat-x; background-size: 50% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-front, 2.5s) linear infinite; }}
     @keyframes wave-move {{ 0% {{ transform: translateX(0) scaleY(var(--wave-scale, 1)); }} 100% {{ transform: translateX(-50%) scaleY(var(--wave-scale, 1)); }} }}
     
-    /* Info Pill Animations */
     @keyframes rain-drip {{ 0% {{ transform: translateY(-2px); box-shadow: 0 4px 10px rgba(116, 185, 255, 0.4); }} 50% {{ transform: translateY(2px); box-shadow: 0 0px 0px rgba(116, 185, 255, 0); }} 100% {{ transform: translateY(-2px); box-shadow: 0 4px 10px rgba(116, 185, 255, 0.4); }} }}
     .rain-anim {{ animation: rain-drip 1.5s infinite ease-in-out; border-color: #74b9ff !important; color: #74b9ff !important; }}
 
     @keyframes fog-fade {{ 0% {{ opacity: 0.5; filter: blur(1px); }} 50% {{ opacity: 1; filter: blur(0px); box-shadow: inset 0 0 10px rgba(255,255,255,0.5); }} 100% {{ opacity: 0.5; filter: blur(1px); }} }}
     .fog-anim {{ animation: fog-fade 3s infinite ease-in-out; border-color: #b2bec3 !important; color: #b2bec3 !important; }}
-    
-    @keyframes sun-spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
-    .sun-anim-icon {{ display: inline-block; animation: sun-spin 10s linear infinite; }}
 
     @media (max-width: 600px) {{
         .main-title {{ text-align: center; margin-bottom: 10px; }}
@@ -326,12 +294,16 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- Top Header & Controls ---
+# Calculate robust Python fallback time
+now_est = datetime.utcnow() - timedelta(hours=5)
+current_date_time = now_est.strftime("%A, %B %d | %I:%M:%S %p")
+
 col_title, col_controls = st.columns([2.2, 1.8])
 with col_title:
     st.markdown(f'''
         <h1 class="main-title">⚓ Lanier Navigator</h1>
         <div id="live-clock-text" style="color: {theme['sub_text']}; font-size: 0.95rem; font-weight: 700; margin-top: 2px; margin-bottom: 15px; padding-left: 2px;">
-            📅 Loading live time...
+            📅 {current_date_time}
         </div>
     ''', unsafe_allow_html=True)
 
@@ -350,6 +322,7 @@ with col_controls:
             st.session_state.is_metric = new_unit
             st.query_params["units"] = "metric" if new_unit else "imperial" 
             st.rerun()
+
 # --- TOP PRIORITY: SAFETY BANNER ---
 if alerts:
     alert_items = "".join([f"<div style='margin-bottom: 8px;'>{a}</div>" for a in alerts])
@@ -395,7 +368,7 @@ st.markdown(f"""
             <span style="font-size:0.65rem; opacity:0.5; display:inline-block; margin-top:5px;">Updated: {d['last_updated']}</span>
         </div>
     </div>
-    <div class="metric-card" style="background: {water_temp_bg};">
+    <div class="metric-card" style="background: {theme['card_bg']} !important;">
         <div class="metric-title">Water Temp</div>
         <div class="metric-value" style="color:{temp_color};">{disp_water_temp}{unit_temp}</div>
         <div class="metric-sub">
@@ -414,42 +387,30 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# --- Consolidated Info Pills & Sunset Progress ---
+# --- Consolidated Info Pills & Live JS Engine ---
+# Calculate sunset progress in Python first (Robust fallback)
 try:
-    # Parse times to calculate daylight progress
     sr_time = datetime.strptime(d["sunrise"], "%I:%M %p").time()
     ss_time = datetime.strptime(d["sunset"], "%I:%M %p").time()
-    
-    # Get approximate EST current time (UTC - 5 hours)
-    now_est = datetime.utcnow() - timedelta(hours=5)
     curr_time = now_est.time()
     
-    # Convert to minutes for percentage math
     sr_mins = sr_time.hour * 60 + sr_time.minute
     ss_mins = ss_time.hour * 60 + ss_time.minute
     curr_mins = curr_time.hour * 60 + curr_time.minute
     
     total_daylight = ss_mins - sr_mins
-    
-    # Determine the base string so times are always visible
     base_sun_str = f"🌅 {d['sunrise']} | 🌇 {d['sunset']}"
     
-    # Generate dynamic label and progress percentage
     if curr_mins < sr_mins:
-        # Before sunrise
         sun_prog = 0
-        rem_hrs = (sr_mins - curr_mins) // 60
-        rem_mins = (sr_mins - curr_mins) % 60
-        sun_lbl = f"{base_sun_str}<br><span style='font-size:0.7rem; opacity:0.8;'>Rises in {rem_hrs}h {rem_mins}m</span>"
+        rem = sr_mins - curr_mins
+        sun_lbl = f"{base_sun_str}<br><span style='font-size:0.7rem; opacity:0.8;'>Rises in {rem // 60}h {rem % 60}m</span>"
         sun_bg = f"background: linear-gradient(90deg, rgba(253, 203, 110, 0.4) {sun_prog}%, {theme['card_bg']} {sun_prog}%);"
-    elif curr_mins > ss_mins:
-        # After sunset (Night Mode)
+    elif curr_mins >= ss_mins:
         sun_prog = 100
         sun_lbl = f"{base_sun_str}<br><span style='font-size:0.7rem; opacity:0.8; color:#74b9ff;'>🌙 Night Operations</span>"
-        # Switch to a dark/cool night gradient instead of the bright sun color
         sun_bg = f"background: linear-gradient(90deg, rgba(41, 128, 185, 0.2) 100%, {theme['card_bg']} 100%);"
     else:
-        # During daylight
         elapsed = curr_mins - sr_mins
         sun_prog = int((elapsed / total_daylight) * 100)
         rem = ss_mins - curr_mins
@@ -457,7 +418,7 @@ try:
         sun_bg = f"background: linear-gradient(90deg, rgba(253, 203, 110, 0.4) {sun_prog}%, {theme['card_bg']} {sun_prog}%);"
 except:
     sun_prog = 0
-    sun_lbl = f"🌅 {d['sunrise']} / 🌇 {d['sunset']}"
+    sun_lbl = f"🌅 {d['sunrise']} | 🌇 {d['sunset']}"
     sun_bg = f"background: {theme['card_bg']};"
 
 rain_anim_class = "rain-anim" if d['rain_chance'] > 30 else ""
@@ -466,7 +427,7 @@ uv_anim_class = "uv-pulse" if d['uv'] > 6 else ""
 
 st.markdown(f"""
 <div class="pill-container">
-    <div class="info-pill" style="{sun_bg} line-height: 1.2; padding: 6px 15px;">{sun_lbl}</div>
+    <div id="live-sun-pill" class="info-pill" style="{sun_bg} line-height: 1.2; padding: 6px 15px;">{sun_lbl}</div>
     <div class="info-pill {rain_anim_class}" style="display: flex; align-items: center; justify-content: center;">🌧️ Rain: {d["rain_chance"]}%</div>
     <div class="info-pill {fog_anim_class}" style="display: flex; align-items: center; justify-content: center;">🌫️ Vis: {disp_vis} {unit_vis}</div>
     <div class="info-pill" style="display: flex; align-items: center; justify-content: center;">🌡️ Pres: {disp_press} {unit_press}</div>
@@ -474,6 +435,74 @@ st.markdown(f"""
     <div class="info-pill {uv_anim_class}" style="display: flex; align-items: center; justify-content: center;">☀️ UV: {round(d["uv"],1)}</div>
 </div>
 """, unsafe_allow_html=True)
+
+# The invisible JavaScript engine (Wrapped in try/catch to fail silently if blocked)
+live_js = f"""
+<script>
+    try {{
+        const sr = "{d['sunrise']}"; 
+        const ss = "{d['sunset']}"; 
+        
+        function parseTime(t) {{
+            if(!t || t === "N/A") return 0;
+            let parts = t.split(' ');
+            let timeParts = parts[0].split(':');
+            let hours = parseInt(timeParts[0], 10);
+            let minutes = parseInt(timeParts[1], 10);
+            if (hours === 12) hours = 0;
+            if (parts[1] === 'PM' && hours !== 12) hours += 12;
+            return hours * 60 + minutes;
+        }}
+        
+        const srMins = parseTime(sr);
+        const ssMins = parseTime(ss);
+        const totalDaylight = ssMins - srMins;
+
+        function updateLive() {{
+            try {{
+                const doc = window.parent.document;
+                const now = new Date();
+                
+                // 1. Update the Main Clock
+                const clockEl = doc.getElementById('live-clock-text');
+                if (clockEl) {{
+                    const timeStr = now.toLocaleTimeString('en-US', {{ hour: '2-digit', minute: '2-digit', second: '2-digit' }});
+                    const dateStr = now.toLocaleDateString('en-US', {{ weekday: 'long', month: 'long', day: 'numeric' }});
+                    clockEl.innerHTML = '📅 ' + dateStr + ' | ' + timeStr;
+                }}
+
+                // 2. Update the Sunset Loading Bar
+                const sunEl = doc.getElementById('live-sun-pill');
+                if (sunEl && srMins > 0) {{
+                    const currMins = now.getHours() * 60 + now.getMinutes();
+                    let prog = 0; let lbl = ""; let bg = "";
+                    const baseStr = "🌅 " + sr + " | 🌇 " + ss;
+                    
+                    if (currMins < srMins) {{
+                        prog = 0;
+                        let rem = srMins - currMins;
+                        lbl = baseStr + "<br><span style='font-size:0.7rem; opacity:0.8;'>Rises in " + Math.floor(rem/60) + "h " + (rem%60) + "m</span>";
+                        bg = "linear-gradient(90deg, rgba(253, 203, 110, 0.4) 0%, {theme['card_bg']} 0%)";
+                    }} else if (currMins >= ssMins) {{
+                        prog = 100;
+                        lbl = baseStr + "<br><span style='font-size:0.7rem; opacity:0.8; color:#74b9ff;'>🌙 Night Operations</span>";
+                        bg = "linear-gradient(90deg, rgba(41, 128, 185, 0.2) 100%, {theme['card_bg']} 100%)";
+                    }} else {{
+                        prog = Math.floor(((currMins - srMins) / totalDaylight) * 100);
+                        let rem = ssMins - currMins;
+                        lbl = baseStr + "<br><span style='font-size:0.7rem; opacity:0.8;'>" + Math.floor(rem/60) + "h " + (rem%60) + "m till Sunset</span>";
+                        bg = "linear-gradient(90deg, rgba(253, 203, 110, 0.4) " + prog + "%, {theme['card_bg']} " + prog + "%)";
+                    }}
+                    sunEl.innerHTML = lbl;
+                    sunEl.style.background = bg;
+                }}
+            }} catch (innerErr) {{ }}
+        }}
+        setInterval(updateLive, 1000);
+    }} catch (outerErr) {{ }}
+</script>
+"""
+st.components.v1.html(live_js, height=0, width=0)
 
 # --- Boating Score ---
 st.markdown("### 🚦 Boating Conditions")
@@ -484,7 +513,6 @@ elif boat_score >= 65: score_label, score_color = "🟡 Good", "#f1c40f"
 elif boat_score >= 40: score_label, score_color = "🟠 Marginal", "#e67e22"
 else: score_label, score_color = "🔴 Stay Home", "#e74c3c"
 
-# Convert reasons into display pills
 reasons_html = "".join([f'<span class="reason-pill">{r}</span>' for r in score_reasons])
 if not reasons_html: reasons_html = '<span class="reason-pill">Ideal Conditions</span>'
 
@@ -507,7 +535,6 @@ with cam_col:
 with sim_col:
     st.markdown('<div class="metric-title" style="margin-bottom:10px;">🌊 Wave Height Simulation</div>', unsafe_allow_html=True)
     
-    # Restored to realistic scaling. A 1.1' wave will look normal.
     css_wave_scale = max(0.2, min(wave_height * 0.8 + 0.2, 2.5))
     css_speed_front = max(1.5, 8.0 - (d["wind_mph"] * 0.25))
     css_speed_back = max(1.2, 6.0 - (d["wind_mph"] * 0.25))
