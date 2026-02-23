@@ -364,7 +364,7 @@ st.markdown(f"""
         <div class="metric-value" style="color:{temp_color};">{disp_water_temp}{unit_temp}</div>
         <div class="metric-sub">Surface</div>
     </div>
-    <div class="metric-card" style="background: {air_temp_card_bg} !important;">
+    <div class="metric-card" style="background: {temp_bg} !important;">
         <div class="metric-title">Air Temp</div>
         <div class="metric-value" style="color:{air_temp_color};">{disp_air_temp}{unit_temp}</div>
         <div class="metric-sub">Flowery Branch</div>
