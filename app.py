@@ -257,13 +257,12 @@ st.markdown(f"""
     @keyframes uv-pulse-anim {{ 0% {{ box-shadow: 0 0 0 0 rgba(241, 196, 15, 0.7); }} 70% {{ box-shadow: 0 0 0 10px rgba(241, 196, 15, 0); }} 100% {{ box-shadow: 0 0 0 0 rgba(241, 196, 15, 0); }} }}
     .uv-pulse {{ animation: uv-pulse-anim 2s infinite; border-color: #f1c40f !important; color: #f1c40f !important; }}
 
-    /* --- NEW & UPDATED ANIMATIONS --- */
-    /* Wave Simulator - Zoomed in, taller, and tighter wave peaks */
-    .sim-wave-box {{ position: relative; background: linear-gradient(to bottom, transparent 0%, rgba(52, 152, 219, 0.1) 100%); height: 160px; border-radius: 10px; overflow: hidden; margin-top: 15px; width: 100%; border-bottom: 4px solid #3498db; }}
-    .sim-wave-back {{ position: absolute; bottom: 0; left: 0; width: 200%; height: 100px; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,60 350,0 600,30 C850,60 1050,0 1200,30 L1200,60 L0,60 Z" fill="%232980b9" opacity="0.5"/></svg>') repeat-x; background-size: 25% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-back, 3s) linear infinite reverse; }}
-    .sim-wave-front {{ position: absolute; bottom: 0; left: 0; width: 200%; height: 80px; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,0 350,60 600,30 C850,0 1050,60 1200,30 L1200,60 L0,60 Z" fill="%233498db" opacity="0.8"/></svg>') repeat-x; background-size: 25% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-front, 2.5s) linear infinite; }}
-    @keyframes wave-move {{ 0% {{ transform: translateX(0) scaleY(var(--wave-scale, 1)); }} 100% {{ transform: translateX(-25%) scaleY(var(--wave-scale, 1)); }} }}
-
+    /* Wave Simulator - Restored to natural size */
+    .sim-wave-box {{ position: relative; background: linear-gradient(to bottom, transparent 0%, rgba(52, 152, 219, 0.1) 100%); height: 100px; border-radius: 10px; overflow: hidden; margin-top: 15px; width: 100%; border-bottom: 3px solid #3498db; }}
+    .sim-wave-back {{ position: absolute; bottom: 0; left: 0; width: 200%; height: 60px; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,60 350,0 600,30 C850,60 1050,0 1200,30 L1200,60 L0,60 Z" fill="%232980b9" opacity="0.5"/></svg>') repeat-x; background-size: 50% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-back, 3s) linear infinite reverse; }}
+    .sim-wave-front {{ position: absolute; bottom: 0; left: 0; width: 200%; height: 50px; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,0 350,60 600,30 C850,0 1050,60 1200,30 L1200,60 L0,60 Z" fill="%233498db" opacity="0.8"/></svg>') repeat-x; background-size: 50% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-front, 2.5s) linear infinite; }}
+    @keyframes wave-move {{ 0% {{ transform: translateX(0) scaleY(var(--wave-scale, 1)); }} 100% {{ transform: translateX(-50%) scaleY(var(--wave-scale, 1)); }} }}
+    
     /* Info Pill Animations */
     @keyframes rain-drip {{ 0% {{ transform: translateY(-2px); box-shadow: 0 4px 10px rgba(116, 185, 255, 0.4); }} 50% {{ transform: translateY(2px); box-shadow: 0 0px 0px rgba(116, 185, 255, 0); }} 100% {{ transform: translateY(-2px); box-shadow: 0 4px 10px rgba(116, 185, 255, 0.4); }} }}
     .rain-anim {{ animation: rain-drip 1.5s infinite ease-in-out; border-color: #74b9ff !important; color: #74b9ff !important; }}
@@ -401,17 +400,15 @@ with cam_col:
 with sim_col:
     st.markdown('<div class="metric-title" style="margin-bottom:10px;">🌊 Wave Height Simulation</div>', unsafe_allow_html=True)
     
-    # Drastically increased scale multiplier to make small chop highly visible
-    css_wave_scale = max(0.4, min(wave_height * 2.0 + 0.3, 4.5)) 
-    
-    # Sped up the animation slightly for a more chaotic feel during wind
-    css_speed_front = max(0.8, 6.0 - (d["wind_mph"] * 0.3))
-    css_speed_back = max(0.6, 4.5 - (d["wind_mph"] * 0.3))
+    # Restored to realistic scaling. A 1.1' wave will look normal.
+    css_wave_scale = max(0.2, min(wave_height * 0.8 + 0.2, 2.5))
+    css_speed_front = max(1.5, 8.0 - (d["wind_mph"] * 0.25))
+    css_speed_back = max(1.2, 6.0 - (d["wind_mph"] * 0.25))
 
     wave_sim_html = f"""
     <div class="metric-card" style="padding: 15px; height: 100%; display: flex; flex-direction: column; justify-content: space-between; margin-bottom: 0px;">
         <div style="text-align: center; margin-bottom: 10px;">
-            <div style="font-size: 2.8rem; font-weight: 900; color: {theme['text']}; line-height: 1;">{disp_wave} {unit_dist}</div>
+            <div style="font-size: 2.5rem; font-weight: 900; color: {theme['text']}; line-height: 1;">{disp_wave} {unit_dist}</div>
             <div style="font-size: 0.9rem; font-weight: 600; color: {theme['sub_text']}; margin-top: 5px;">Estimated Surface Chop</div>
         </div>
         <div class="sim-wave-box" style="--wave-scale: {css_wave_scale}; --wave-speed-front: {css_speed_front}s; --wave-speed-back: {css_speed_back}s;">
