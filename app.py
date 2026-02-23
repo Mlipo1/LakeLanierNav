@@ -338,9 +338,8 @@ if alerts:
 # --- Metric Card Displays ---
 trend_arrow = "↑" if trend_24h >= 0 else "↓"
 trend_html = f"<span style='color:{'#2ecc71' if trend_24h >= 0 else '#e74c3c'}; font-weight:700;'>{trend_arrow} {abs(trend_24h)} {unit_dist}</span>"
-uv_card_class = "uv-high-card" if d['uv'] > 7 else ""
 
-# Define the display strings and colors for the cards
+# Define the display strings and colors for the text values
 level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
 temp_color = "#3498db" if disp_water_temp < 60 else "#f39c12" if disp_water_temp < 80 else "#e74c3c"
 
@@ -359,12 +358,12 @@ st.markdown(f"""
         <div class="metric-value">{level_val}</div>
         <div class="metric-sub">{trend_html} (24h)</div>
     </div>
-    <div class="metric-card" style="background: {water_temp_bg};">
+    <div class="metric-card">
         <div class="metric-title">Water Temp</div>
         <div class="metric-value" style="color:{temp_color};">{disp_water_temp}{unit_temp}</div>
         <div class="metric-sub">Surface</div>
     </div>
-    <div class="metric-card" style="background: {temp_bg} !important;">
+    <div class="metric-card">
         <div class="metric-title">Air Temp</div>
         <div class="metric-value" style="color:{air_temp_color};">{disp_air_temp}{unit_temp}</div>
         <div class="metric-sub">Flowery Branch</div>
@@ -405,11 +404,12 @@ except:
     sun_prog = 0
     sun_lbl = f"🌅 {d['sunrise']} / {d['sunset']}"
 
-# Dynamic background gradient that acts as a loading bar filling left-to-right
-sun_bg = f"background: linear-gradient(90deg, rgba(243, 156, 18, 0.25) {sun_prog}%, {theme['card_bg']} {sun_prog}%);"
+# Dynamic background gradient: Brightened the golden yellow so it doesn't look brown
+sun_bg = f"background: linear-gradient(90deg, rgba(253, 203, 110, 0.4) {sun_prog}%, {theme['card_bg']} {sun_prog}%);"
 
 rain_anim_class = "rain-anim" if d['rain_chance'] > 30 else ""
 fog_anim_class = "fog-anim" if d['visibility'] != "N/A" and d['visibility'] < 5 else ""
+uv_anim_class = "uv-pulse" if d['uv'] > 6 else ""
 
 st.markdown(f"""
 <div class="pill-container">
@@ -421,6 +421,7 @@ st.markdown(f"""
     <div class="info-pill {uv_anim_class}">☀️ UV: {round(d["uv"],1)}</div>
 </div>
 """, unsafe_allow_html=True)
+
 # --- Boating Score ---
 st.markdown("### 🚦 Boating Conditions")
 boat_score, score_reasons = calculate_boat_score(d, wave_height)
