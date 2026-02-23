@@ -90,11 +90,45 @@ def calculate_chop(wind, gusts):
 FULL_POOL_FT = 1071.0
 
 def calculate_boat_score(d, wave):
-    score = 100 - (d["wind_mph"] * 1.5) - (d["rain_chance"] * 0.5) - (wave * 8)
+    score = 100
+    reasons = []
+
+    # 1. Wind & Gusts (Safety & Comfort)
+    wind_penalty = d["wind_mph"] * 1.5
+    gust_penalty = (d["gusts"] - d["wind_mph"]) * 1.0 if d["gusts"] > d["wind_mph"] else 0
+    score -= (wind_penalty + gust_penalty)
+    if d["wind_mph"] > 12: reasons.append("Significant wind/gusts")
+
+    # 2. Rain & Clouds (Comfort)
+    score -= (d["rain_chance"] * 0.6)
+    if d["rain_chance"] > 40: reasons.append(f"{d['rain_chance']}% Rain chance")
+
+    # 3. Wave Height (Safety)
+    score -= (wave * 10)
+    if wave > 1.5: reasons.append("High surface chop")
+
+    # 4. Water Temp (Safety - Hypothermia Risk)
+    if d["water_temp"] < 60:
+        score -= 15
+        reasons.append("Dangerously cold water")
+    elif d["water_temp"] < 70:
+        score -= 5
+        reasons.append("Chilly water")
+
+    # 5. Visibility (Safety)
+    if d["visibility"] != "N/A" and d["visibility"] < 4:
+        score -= 10
+        reasons.append("Low visibility/Fog")
+
+    # 6. Lake Level (Hazard)
     if d['level'] != "N/A":
-        level_diff = FULL_POOL_FT - d['level']
-        if level_diff > 0: score -= (level_diff * 3)
-    return max(0, min(100, round(score)))
+        level_diff = abs(FULL_POOL_FT - d['level'])
+        if level_diff > 3:
+            score -= (level_diff * 2)
+            reasons.append("Off-pool hazards")
+
+    final_score = max(0, min(100, round(score)))
+    return final_score, reasons
 
 def get_safety_alert(d, wave):
     alerts = []
@@ -158,6 +192,25 @@ theme = {
     "map_tiles": "CartoDB dark_matter" if st.session_state.dark_mode else "CartoDB positron"
 }
 
+# --- Dynamic Color & Animation Variables ---
+# Determine Dynamic Backgrounds for Temperatures
+temp_bg = theme['card_bg']
+if d['air_temp'] != "N/A":
+    if d['air_temp'] >= 80: temp_bg = "linear-gradient(135deg, #2c1a1a, #3a2020)" if st.session_state.dark_mode else "linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)"
+    elif d['air_temp'] <= 55: temp_bg = "linear-gradient(135deg, #1a252c, #1f303a)" if st.session_state.dark_mode else "linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)"
+
+water_temp_bg = theme['card_bg']
+if d['water_temp'] >= 80: water_temp_bg = "linear-gradient(135deg, #2c1a1a, #3a2020)" if st.session_state.dark_mode else "linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)"
+elif d['water_temp'] <= 60: water_temp_bg = "linear-gradient(135deg, #1a252c, #1f303a)" if st.session_state.dark_mode else "linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)"
+
+# Determine Wind & UV Animations
+is_windy = d['wind_mph'] >= 15 or d['gusts'] >= 20
+wind_anim_class = "wind-shake" if is_windy else "animated-wind"
+wind_icon_color = "#ff7675" if is_windy else "#ffffff"
+
+is_high_uv = d['uv'] > 6
+uv_anim_class = "uv-pulse" if is_high_uv else ""
+
 st.markdown(f"""
     <style>
     html, body, [data-testid="stAppViewContainer"], .stApp {{ overflow-x: hidden !important; max-width: 100vw !important; }}
@@ -177,20 +230,32 @@ st.markdown(f"""
     .alert-content {{ padding: 0 15px 15px 15px; font-weight: 600; font-size: 0.95rem; line-height: 1.4; }}
     
     .metrics-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px; }}
-    .metric-card {{ background: {theme['card_bg']}; border-radius: 15px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; border: 1px solid {theme['border']}; display: flex; flex-direction: column; justify-content: center; }}
+    .metric-card {{ background: {theme['card_bg']}; border-radius: 15px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); text-align: center; border: 1px solid {theme['border']}; display: flex; flex-direction: column; justify-content: center; transition: background 0.5s ease; }}
     .metric-title {{ color: {theme['sub_text']}; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }}
     .metric-value {{ color: {theme['text']}; font-size: 2.2rem; font-weight: 900; line-height: 1.1; }}
     .metric-sub {{ font-size: 0.8rem; font-weight: 600; margin-top: 5px; color: {theme['sub_text']}; line-height: 1.3; }}
     .text-red {{ color: #e74c3c; }}
     
     .pill-container {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 25px; margin-top: 5px; }}
-    .info-pill {{ background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 30px; padding: 8px 15px; color: {theme['text']}; font-size: 0.85rem; font-weight: 600; text-align: center; flex: 1 1 calc(33% - 10px); min-width: 130px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); }}
+    .info-pill {{ background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 30px; padding: 8px 15px; color: {theme['text']}; font-size: 0.85rem; font-weight: 600; text-align: center; flex: 1 1 calc(33% - 10px); min-width: 130px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); transition: all 0.3s; }}
     
+    /* NEW: Score Reasoning Pills */
+    .reason-pill {{ display: inline-block; background: rgba(0,0,0,0.1); padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; margin: 3px; font-weight: 700; border: 1px solid rgba(128,128,128,0.3); color: {theme['text']}; }}
+
     .wind-container {{ background: linear-gradient(135deg, #2c3e50, #3498db); border-radius: 20px; padding: 20px; color: white; box-shadow: 0 10px 20px rgba(0,0,0,0.15); margin-bottom: 25px; }}
     .wind-merged {{ display: flex; flex-direction: row; align-items: center; justify-content: space-around; gap: 20px; width: 100%; }}
     .wind-stats-box {{ background: rgba(0,0,0,0.25); padding: 15px 25px; border-radius: 15px; min-width: 50%; text-align: center; }}
+    
+    /* Wind Animations */
     @keyframes wind-pulse {{ 0% {{ transform: translateY(0px); opacity: 0.8; }} 50% {{ transform: translateY(-8px); opacity: 1; filter: drop-shadow(0px 0px 8px rgba(255, 255, 255, 0.8)); }} 100% {{ transform: translateY(0px); opacity: 0.8; }} }}
     .animated-wind {{ display: inline-block; animation: wind-pulse 2s infinite ease-in-out; }}
+    
+    @keyframes wind-shake-anim {{ 0% {{ transform: translateY(0px) rotate(0deg); }} 25% {{ transform: translateY(-3px) rotate(15deg); }} 50% {{ transform: translateY(-6px) rotate(0deg); }} 75% {{ transform: translateY(-3px) rotate(-15deg); }} 100% {{ transform: translateY(0px) rotate(0deg); }} }}
+    .wind-shake {{ display: inline-block; animation: wind-shake-anim 0.4s infinite ease-in-out; filter: drop-shadow(0px 0px 10px rgba(255, 118, 117, 0.9)); }}
+
+    /* UV Animation */
+    @keyframes uv-pulse-anim {{ 0% {{ box-shadow: 0 0 0 0 rgba(241, 196, 15, 0.7); }} 70% {{ box-shadow: 0 0 0 10px rgba(241, 196, 15, 0); }} 100% {{ box-shadow: 0 0 0 0 rgba(241, 196, 15, 0); }} }}
+    .uv-pulse {{ animation: uv-pulse-anim 2s infinite; border-color: #f1c40f !important; color: #f1c40f !important; }}
 
     .sim-wave-box {{ position: relative; background: linear-gradient(to bottom, transparent 0%, rgba(52, 152, 219, 0.1) 100%); height: 100px; border-radius: 10px; overflow: hidden; margin-top: 15px; width: 100%; border-bottom: 3px solid #3498db; }}
     .sim-wave-back {{ position: absolute; bottom: 0; left: 0; width: 200%; height: 60px; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,60 350,0 600,30 C850,60 1050,0 1200,30 L1200,60 L0,60 Z" fill="%232980b9" opacity="0.5"/></svg>') repeat-x; background-size: 50% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-back, 3s) linear infinite reverse; }}
@@ -265,12 +330,12 @@ st.markdown(f"""
         <div class="metric-value">{level_val}</div>
         <div class="metric-sub">{level_diff_html} (Full)</div>
     </div>
-    <div class="metric-card">
+    <div class="metric-card" style="background: {water_temp_bg};">
         <div class="metric-title">Water Temp</div>
         <div class="metric-value" style="color:{temp_color};">{disp_water_temp}{unit_temp}</div>
         <div class="metric-sub">Surface</div>
     </div>
-    <div class="metric-card">
+    <div class="metric-card" style="background: {temp_bg};">
         <div class="metric-title">Air Temp</div>
         <div class="metric-value">{disp_air_temp}{unit_temp}</div>
         <div class="metric-sub">Flowery Branch</div>
@@ -285,24 +350,29 @@ st.markdown(f"""
     <div class="info-pill">🌫️ Vis: {disp_vis} {unit_vis}</div>
     <div class="info-pill">🌡️ Pres: {disp_press} {unit_press}</div>
     <div class="info-pill">☁️ Clouds: {d["clouds"]}%</div>
-    <div class="info-pill">☀️ UV: {round(d["uv"],1)}</div>
+    <div class="info-pill {uv_anim_class}">☀️ UV: {round(d["uv"],1)}</div>
 </div>
 """, unsafe_allow_html=True)
 
 # --- Boating Score ---
 st.markdown("### 🚦 Boating Conditions")
-boat_score = calculate_boat_score(d, wave_height)
+boat_score, score_reasons = calculate_boat_score(d, wave_height)
 
 if boat_score >= 85: score_label, score_color = "🟢 Excellent", "#2ecc71"
 elif boat_score >= 65: score_label, score_color = "🟡 Good", "#f1c40f"
 elif boat_score >= 40: score_label, score_color = "🟠 Marginal", "#e67e22"
 else: score_label, score_color = "🔴 Stay Home", "#e74c3c"
 
+# Convert reasons into display pills
+reasons_html = "".join([f'<span class="reason-pill">{r}</span>' for r in score_reasons])
+if not reasons_html: reasons_html = '<span class="reason-pill">Ideal Conditions</span>'
+
 st.markdown(f"""
 <div class="metric-card" style="padding: 15px; margin-bottom: 15px;">
     <div class="metric-title" style="margin-bottom: 5px;">Overall Boating Score</div>
     <div style="font-size: 2.5rem; font-weight: 900; color: {score_color}; line-height: 1; margin: 10px 0;">{boat_score}<span style="font-size: 1.2rem; color: {theme['sub_text']}">/100</span></div>
-    <div class="metric-sub" style="font-size: 1rem;">{score_label} (Based on level, wind, rain & waves)</div>
+    <div class="metric-sub" style="font-size: 1rem; margin-bottom: 10px;">{score_label} (Based on level, wind, rain & waves)</div>
+    <div style="margin-top: 5px;">{reasons_html}</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -341,8 +411,8 @@ wind_html = f"""
 <div style="text-align: center;">
 <div style="font-size: 0.8rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; opacity: 0.9;">WIND DIR</div>
 <div style="transform: rotate({wind_rotation}deg); display: inline-block;">
-<div class="animated-wind">
-<svg width="45" height="45" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+<div class="{wind_anim_class}">
+<svg width="45" height="45" viewBox="0 0 24 24" fill="none" stroke="{wind_icon_color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
 <line x1="12" y1="19" x2="12" y2="5"></line>
 <polyline points="5 12 12 5 19 12"></polyline>
 </svg>
