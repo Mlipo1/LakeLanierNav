@@ -397,7 +397,7 @@ st.markdown(f"""
         <div class="metric-value">{level_val}</div>
         <div class="metric-sub" style="margin-top: 2px;">{level_sub_html}</div>
     </div>
-    <div class="metric-card" style="background: {water_temp_bg};">
+    <div class="metric-card" style="background: {theme['card_bg']} !important;">
         <div class="metric-title">Water Temp</div>
         <div class="metric-value" style="color:{temp_color};">{disp_water_temp}{unit_temp}</div>
         <div class="metric-sub">Surface</div>
