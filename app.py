@@ -107,13 +107,17 @@ def calculate_boat_score(d, wave):
     score -= (wave * 10)
     if wave > 1.5: reasons.append("High surface chop")
 
-    # 4. Water Temp (Safety - Hypothermia Risk)
-    if d["water_temp"] < 60:
+    # 4. Water Temp (Safety & Comfort - Open Water Standards)
+    wt = d["water_temp"]
+    if wt < 50:
+        score -= 25
+        reasons.append("Very Cold (<50°F): Rapid hypothermia risk")
+    elif wt < 60:
         score -= 15
-        reasons.append("Dangerously cold water")
-    elif d["water_temp"] < 70:
+        reasons.append("Cold (50-60°F): Wetsuit highly recommended")
+    elif wt < 70:
         score -= 5
-        reasons.append("Chilly water")
+        reasons.append("Cool (60-70°F): Can become uncomfortable")
 
     # 5. Visibility (Safety)
     if d["visibility"] != "N/A" and d["visibility"] < 4:
@@ -122,14 +126,20 @@ def calculate_boat_score(d, wave):
 
     # 6. Lake Level (Hazard)
     if d['level'] != "N/A":
-        level_diff = abs(FULL_POOL_FT - d['level'])
-        if level_diff > 3:
+        if d['level'] < (FULL_POOL_FT - 3):
+            # Lake is more than 3 feet low
+            level_diff = FULL_POOL_FT - d['level']
             score -= (level_diff * 2)
-            reasons.append("Off-pool hazards")
+            reasons.append("Low Water: Watch for shallow shoals")
+        elif d['level'] > (FULL_POOL_FT + 3):
+            # Lake is more than 3 feet high
+            level_diff = d['level'] - FULL_POOL_FT
+            score -= (level_diff * 2)
+            reasons.append("High Water: Watch for floating debris")
 
     final_score = max(0, min(100, round(score)))
     return final_score, reasons
-
+    
 def get_safety_alert(d, wave):
     alerts = []
     if d["wind_mph"] >= 20 or d["gusts"] >= 30: 
