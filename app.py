@@ -62,6 +62,10 @@ def fetch_data():
             scraped_temp = int(match.group(1))
             if 35 <= scraped_temp <= 95: data["water_temp"] = scraped_temp
     except Exception: pass 
+    
+    # NEW: Add Last Updated Timestamp
+    now_est = datetime.utcnow() - timedelta(hours=5)
+    data["last_updated"] = now_est.strftime("%I:%M %p")
     return data
 
 @st.cache_data(ttl=300)
@@ -322,40 +326,30 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- Top Header & Controls ---
-# Calculate current local time (EST)
-now_est = datetime.utcnow() - timedelta(hours=5)
-current_date_time = now_est.strftime("%A, %B %d | %I:%M %p")
-
 col_title, col_controls = st.columns([2.2, 1.8])
 with col_title:
     st.markdown(f'''
         <h1 class="main-title">⚓ Lanier Navigator</h1>
-        <div style="color: {theme['sub_text']}; font-size: 0.95rem; font-weight: 700; margin-top: 2px; margin-bottom: 15px; padding-left: 2px;">
-            📅 {current_date_time}
+        <div id="live-clock-text" style="color: {theme['sub_text']}; font-size: 0.95rem; font-weight: 700; margin-top: 2px; margin-bottom: 15px; padding-left: 2px;">
+            📅 Loading live time...
         </div>
     ''', unsafe_allow_html=True)
 
 with col_controls:
     st.write("") 
-    
-    # Theme Toggle
-    theme_lbl = "🌙 Dark Theme" if st.session_state.dark_mode else "☀️ Light Theme"
-    new_theme = st.toggle(theme_lbl, value=st.session_state.dark_mode)
-    if new_theme != st.session_state.dark_mode:
-        st.session_state.dark_mode = new_theme
-        # Silently update the URL so the browser remembers this choice
-        st.query_params["theme"] = "dark" if new_theme else "light" 
-        st.rerun()
-        
-    # Units Toggle
-    unit_lbl = "📏 Metric Units" if st.session_state.is_metric else "📏 Imperial Units"
-    new_unit = st.toggle(unit_lbl, value=st.session_state.is_metric)
-    if new_unit != st.session_state.is_metric:
-        st.session_state.is_metric = new_unit
-        # Silently update the URL so the browser remembers this choice
-        st.query_params["units"] = "metric" if new_unit else "imperial" 
-        st.rerun()
-
+    c1, c2 = st.columns(2)
+    with c1:
+        new_theme = st.toggle("🌙 Dark", value=st.session_state.dark_mode)
+        if new_theme != st.session_state.dark_mode:
+            st.session_state.dark_mode = new_theme
+            st.query_params["theme"] = "dark" if new_theme else "light" 
+            st.rerun()
+    with c2:
+        new_unit = st.toggle("📏 Metric", value=st.session_state.is_metric)
+        if new_unit != st.session_state.is_metric:
+            st.session_state.is_metric = new_unit
+            st.query_params["units"] = "metric" if new_unit else "imperial" 
+            st.rerun()
 # --- TOP PRIORITY: SAFETY BANNER ---
 if alerts:
     alert_items = "".join([f"<div style='margin-bottom: 8px;'>{a}</div>" for a in alerts])
@@ -372,49 +366,50 @@ if alerts:
 
 # --- Metric Card Displays ---
 if d['level'] != "N/A":
-    # 24h Trend formatting
     trend_arrow = "↑" if trend_24h >= 0 else "↓"
     trend_color = "#2ecc71" if trend_24h >= 0 else "#e74c3c"
-    
-    # Full Pool formatting
     pool_diff_raw = d['level'] - FULL_POOL_FT
     pool_arrow = "↑" if pool_diff_raw >= 0 else "↓"
     pool_color = "#3498db" if pool_diff_raw >= 0 else "#e74c3c" 
-    
     level_sub_html = f"<span style='color:{trend_color}; font-weight:700;'>{trend_arrow} {abs(trend_24h)} {unit_dist} (24h)</span><br><span style='color:{pool_color}; font-weight:700;'>{pool_arrow} {disp_pool_diff}{unit_dist} (Full)</span>"
 else:
     level_sub_html = "Data unavailable"
 
-uv_card_class = "uv-high-card" if d['uv'] > 7 else ""
-
-# Define the display strings and colors for the text values
 level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
 temp_color = "#3498db" if disp_water_temp < 60 else "#f39c12" if disp_water_temp < 80 else "#e74c3c"
 
-# Dynamic Air Temp Text Color
 air_temp_color = theme['text']
 if d['air_temp'] != "N/A":
-    if d['air_temp'] >= 85: air_temp_color = "#ff7675" # Hot (Red)
-    elif d['air_temp'] >= 75: air_temp_color = "#fdcb6e" # Warm (Orange)
-    elif d['air_temp'] <= 45: air_temp_color = "#74b9ff" # Cold (Blue)
-    elif d['air_temp'] <= 32: air_temp_color = "#81ecec" # Freezing (Cyan)
+    if d['air_temp'] >= 85: air_temp_color = "#ff7675" 
+    elif d['air_temp'] >= 75: air_temp_color = "#fdcb6e" 
+    elif d['air_temp'] <= 45: air_temp_color = "#74b9ff" 
+    elif d['air_temp'] <= 32: air_temp_color = "#81ecec" 
 
 st.markdown(f"""
 <div class="metrics-grid">
     <div class="metric-card">
         <div class="metric-title">Lake Level</div>
         <div class="metric-value">{level_val}</div>
-        <div class="metric-sub" style="margin-top: 2px;">{level_sub_html}</div>
+        <div class="metric-sub" style="margin-top: 2px;">
+            {level_sub_html}<br>
+            <span style="font-size:0.65rem; opacity:0.5; display:inline-block; margin-top:5px;">Updated: {d['last_updated']}</span>
+        </div>
     </div>
-    <div class="metric-card" style="background: {theme['card_bg']} !important;">
+    <div class="metric-card" style="background: {water_temp_bg};">
         <div class="metric-title">Water Temp</div>
         <div class="metric-value" style="color:{temp_color};">{disp_water_temp}{unit_temp}</div>
-        <div class="metric-sub">Surface</div>
+        <div class="metric-sub">
+            Surface<br>
+            <span style="font-size:0.65rem; opacity:0.5; display:inline-block; margin-top:5px;">Updated: {d['last_updated']}</span>
+        </div>
     </div>
     <div class="metric-card" style="background: {theme['card_bg']} !important;">
         <div class="metric-title">Air Temp</div>
         <div class="metric-value" style="color:{air_temp_color};">{disp_air_temp}{unit_temp}</div>
-        <div class="metric-sub">Flowery Branch</div>
+        <div class="metric-sub">
+            Flowery Branch<br>
+            <span style="font-size:0.65rem; opacity:0.5; display:inline-block; margin-top:5px;">Updated: {d['last_updated']}</span>
+        </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
