@@ -142,6 +142,8 @@ def calculate_boat_score(d, wave):
 
 def get_safety_alert(d, wave):
     alerts = []
+    
+    # Existing Weather & Wave Alerts
     if d["wind_mph"] >= 20 or d["gusts"] >= 30: 
         alerts.append("🌬️ <strong>High Wind Advisory:</strong> Dangerous gusts detected. Small craft caution.")
     if d["rain_chance"] >= 70: 
@@ -151,11 +153,35 @@ def get_safety_alert(d, wave):
     if wave >= 3: 
         alerts.append("🌊 <strong>Rough Chop:</strong> Estimated wave heights exceed 3 feet.")
     
+    # NEW: Extreme Cold Water Alert
+    if d["water_temp"] < 50:
+        alerts.append("🥶 <strong>Extreme Cold Water:</strong> Water is <50°F. Immediate life-threatening hypothermia risk if submerged. Wear life jackets.")
+        
+    # NEW: Freezing Conditions / Ramp Ice
+    if d["air_temp"] != "N/A" and d["air_temp"] <= 32:
+        alerts.append("❄️ <strong>Freezing Conditions:</strong> Watch for black ice on boat ramps and highly slippery fiberglass decks.")
+        
+    # NEW: Dynamic Night Operations Warning
+    try:
+        now_est = datetime.utcnow() - timedelta(hours=5)
+        curr_mins = now_est.time().hour * 60 + now_est.time().minute
+        ss_time = datetime.strptime(d["sunset"], "%I:%M %p").time()
+        ss_mins = ss_time.hour * 60 + ss_time.minute
+        
+        if curr_mins >= ss_mins:
+            alerts.append("🌙 <strong>Night Operations:</strong> Sun has set. Navigational lights (360-degree white, red/green bow) are required by law.")
+        elif (ss_mins - curr_mins) <= 45:
+            alerts.append("🌇 <strong>Approaching Sunset:</strong> Less than 45 minutes of daylight. Prepare navigation lights.")
+    except:
+        pass
+    
+    # Lake Level Alerts
     if d['level'] != "N/A":
-        if d['level'] < 1066:
-            alerts.append("📉 <strong>Low Water Hazard:</strong> Lake is >5ft down. Watch for newly exposed shoals. Fixed docks and ramps may be unusable.")
-        elif d['level'] > 1072:
+        if d['level'] < (FULL_POOL_FT - 3):
+            alerts.append("📉 <strong>Low Water Hazard:</strong> Lake is >3ft down. Watch for newly exposed shoals. Fixed docks and ramps may be unusable.")
+        elif d['level'] > (FULL_POOL_FT + 3):
             alerts.append("🪵 <strong>High Water Warning:</strong> Lake is above full pool. Watch for floating debris and submerged dock structures.")
+            
     return alerts
 
 # --- INITIALIZE DATA SO ALERTS CAN BE SHOWN AT TOP ---
@@ -336,8 +362,21 @@ if alerts:
     """, unsafe_allow_html=True)
 
 # --- Metric Card Displays ---
-trend_arrow = "↑" if trend_24h >= 0 else "↓"
-trend_html = f"<span style='color:{'#2ecc71' if trend_24h >= 0 else '#e74c3c'}; font-weight:700;'>{trend_arrow} {abs(trend_24h)} {unit_dist}</span>"
+if d['level'] != "N/A":
+    # 24h Trend formatting
+    trend_arrow = "↑" if trend_24h >= 0 else "↓"
+    trend_color = "#2ecc71" if trend_24h >= 0 else "#e74c3c"
+    
+    # Full Pool formatting
+    pool_diff_raw = d['level'] - FULL_POOL_FT
+    pool_arrow = "↑" if pool_diff_raw >= 0 else "↓"
+    pool_color = "#3498db" if pool_diff_raw >= 0 else "#e74c3c" 
+    
+    level_sub_html = f"<span style='color:{trend_color}; font-weight:700;'>{trend_arrow} {abs(trend_24h)} {unit_dist} (24h)</span><br><span style='color:{pool_color}; font-weight:700;'>{pool_arrow} {disp_pool_diff}{unit_dist} (Full)</span>"
+else:
+    level_sub_html = "Data unavailable"
+
+uv_card_class = "uv-high-card" if d['uv'] > 7 else ""
 
 # Define the display strings and colors for the text values
 level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
@@ -356,14 +395,14 @@ st.markdown(f"""
     <div class="metric-card">
         <div class="metric-title">Lake Level</div>
         <div class="metric-value">{level_val}</div>
-        <div class="metric-sub">{trend_html} (24h)</div>
+        <div class="metric-sub" style="margin-top: 2px;">{level_sub_html}</div>
     </div>
-    <div class="metric-card">
+    <div class="metric-card" style="background: {water_temp_bg};">
         <div class="metric-title">Water Temp</div>
         <div class="metric-value" style="color:{temp_color};">{disp_water_temp}{unit_temp}</div>
         <div class="metric-sub">Surface</div>
     </div>
-    <div class="metric-card">
+    <div class="metric-card" style="background: {theme['card_bg']} !important;">
         <div class="metric-title">Air Temp</div>
         <div class="metric-value" style="color:{air_temp_color};">{disp_air_temp}{unit_temp}</div>
         <div class="metric-sub">Flowery Branch</div>
