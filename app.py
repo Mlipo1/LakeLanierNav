@@ -322,9 +322,18 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # --- Top Header & Controls ---
+# Calculate current local time (EST)
+now_est = datetime.utcnow() - timedelta(hours=5)
+current_date_time = now_est.strftime("%A, %B %d | %I:%M %p")
+
 col_title, col_controls = st.columns([2.2, 1.8])
 with col_title:
-    st.markdown('<h1 class="main-title">⚓ Lanier Navigator</h1>', unsafe_allow_html=True)
+    st.markdown(f'''
+        <h1 class="main-title">⚓ Lanier Navigator</h1>
+        <div style="color: {theme['sub_text']}; font-size: 0.95rem; font-weight: 700; margin-top: 2px; margin-bottom: 15px; padding-left: 2px;">
+            📅 {current_date_time}
+        </div>
+    ''', unsafe_allow_html=True)
 
 with col_controls:
     st.write("") 
