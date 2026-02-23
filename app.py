@@ -257,20 +257,22 @@ st.markdown(f"""
     @keyframes uv-pulse-anim {{ 0% {{ box-shadow: 0 0 0 0 rgba(241, 196, 15, 0.7); }} 70% {{ box-shadow: 0 0 0 10px rgba(241, 196, 15, 0); }} 100% {{ box-shadow: 0 0 0 0 rgba(241, 196, 15, 0); }} }}
     .uv-pulse {{ animation: uv-pulse-anim 2s infinite; border-color: #f1c40f !important; color: #f1c40f !important; }}
 
-    .sim-wave-box { position: relative; background: linear-gradient(to bottom, transparent 0%, rgba(52, 152, 219, 0.1) 100%); height: 160px; border-radius: 10px; overflow: hidden; margin-top: 15px; width: 100%; border-bottom: 4px solid #3498db; }
-    .sim-wave-back { position: absolute; bottom: 0; left: 0; width: 200%; height: 100px; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,60 350,0 600,30 C850,60 1050,0 1200,30 L1200,60 L0,60 Z" fill="%232980b9" opacity="0.5"/></svg>') repeat-x; background-size: 25% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-back, 3s) linear infinite reverse; }
-    .sim-wave-front { position: absolute; bottom: 0; left: 0; width: 200%; height: 80px; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,0 350,60 600,30 C850,0 1050,60 1200,30 L1200,60 L0,60 Z" fill="%233498db" opacity="0.8"/></svg>') repeat-x; background-size: 25% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-front, 2.5s) linear infinite; }
-    @keyframes wave-move { 0% { transform: translateX(0) scaleY(var(--wave-scale, 1)); } 100% { transform: translateX(-25%) scaleY(var(--wave-scale, 1)); } }
+    /* --- NEW & UPDATED ANIMATIONS --- */
+    /* Wave Simulator - Zoomed in, taller, and tighter wave peaks */
+    .sim-wave-box {{ position: relative; background: linear-gradient(to bottom, transparent 0%, rgba(52, 152, 219, 0.1) 100%); height: 160px; border-radius: 10px; overflow: hidden; margin-top: 15px; width: 100%; border-bottom: 4px solid #3498db; }}
+    .sim-wave-back {{ position: absolute; bottom: 0; left: 0; width: 200%; height: 100px; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,60 350,0 600,30 C850,60 1050,0 1200,30 L1200,60 L0,60 Z" fill="%232980b9" opacity="0.5"/></svg>') repeat-x; background-size: 25% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-back, 3s) linear infinite reverse; }}
+    .sim-wave-front {{ position: absolute; bottom: 0; left: 0; width: 200%; height: 80px; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 1200 60" xmlns="http://www.w3.org/2000/svg"><path d="M0,30 C150,0 350,60 600,30 C850,0 1050,60 1200,30 L1200,60 L0,60 Z" fill="%233498db" opacity="0.8"/></svg>') repeat-x; background-size: 25% 100%; transform-origin: bottom; animation: wave-move var(--wave-speed-front, 2.5s) linear infinite; }}
+    @keyframes wave-move {{ 0% {{ transform: translateX(0) scaleY(var(--wave-scale, 1)); }} 100% {{ transform: translateX(-25%) scaleY(var(--wave-scale, 1)); }} }}
 
     /* Info Pill Animations */
-    @keyframes rain-drip { 0% { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(116, 185, 255, 0.4); } 50% { transform: translateY(2px); box-shadow: 0 0px 0px rgba(116, 185, 255, 0); } 100% { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(116, 185, 255, 0.4); } }
-    .rain-anim { animation: rain-drip 1.5s infinite ease-in-out; border-color: #74b9ff !important; color: #74b9ff !important; }
+    @keyframes rain-drip {{ 0% {{ transform: translateY(-2px); box-shadow: 0 4px 10px rgba(116, 185, 255, 0.4); }} 50% {{ transform: translateY(2px); box-shadow: 0 0px 0px rgba(116, 185, 255, 0); }} 100% {{ transform: translateY(-2px); box-shadow: 0 4px 10px rgba(116, 185, 255, 0.4); }} }}
+    .rain-anim {{ animation: rain-drip 1.5s infinite ease-in-out; border-color: #74b9ff !important; color: #74b9ff !important; }}
 
-    @keyframes fog-fade { 0% { opacity: 0.5; filter: blur(1px); } 50% { opacity: 1; filter: blur(0px); box-shadow: inset 0 0 10px rgba(255,255,255,0.5); } 100% { opacity: 0.5; filter: blur(1px); } }
-    .fog-anim { animation: fog-fade 3s infinite ease-in-out; border-color: #b2bec3 !important; color: #b2bec3 !important; }
+    @keyframes fog-fade {{ 0% {{ opacity: 0.5; filter: blur(1px); }} 50% {{ opacity: 1; filter: blur(0px); box-shadow: inset 0 0 10px rgba(255,255,255,0.5); }} 100% {{ opacity: 0.5; filter: blur(1px); }} }}
+    .fog-anim {{ animation: fog-fade 3s infinite ease-in-out; border-color: #b2bec3 !important; color: #b2bec3 !important; }}
     
-    @keyframes sun-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .sun-anim-icon { display: inline-block; animation: sun-spin 10s linear infinite; }
+    @keyframes sun-spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
+    .sun-anim-icon {{ display: inline-block; animation: sun-spin 10s linear infinite; }}
 
     @media (max-width: 600px) {{
         .main-title {{ text-align: center; margin-bottom: 10px; }}
