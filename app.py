@@ -51,7 +51,7 @@ def fetch_data():
         data["sunrise"] = datetime.strptime(daily['sunrise'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
         data["sunset"] = datetime.strptime(daily['sunset'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
         current_time_iso = current['time'] # Looks like "2026-02-27T17:00"
-       try:
+    try:
             # Now 'hourly' exists and this won't crash the block
             current_hour_index = hourly['time'].index(current_time_iso)
             data["rain_chance"] = hourly['precipitation_probability'][current_hour_index]
