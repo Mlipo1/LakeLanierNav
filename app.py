@@ -434,8 +434,8 @@ fog_anim_class = "fog-anim" if d['visibility'] != "N/A" and d['visibility'] < 5 
 uv_anim_class = "uv-pulse" if d['uv'] > 6 else ""
 
 st.markdown(f"""
-<div class="pill-container">
-    <div id="live-sun-pill" class="info-pill" style="{sun_bg} line-height: 1.2; padding: 6px 15px;"></div>
+<div class="pill-container" style="display: flex; gap: 10px; margin-bottom: 10px;">
+    <div id="live-sun-pill" class="info-pill" style="flex: 1; {sun_bg} line-height: 1.2; padding: 6px 15px; min-height: 45px;"></div>
     <div class="info-pill {rain_anim_class}" style="display: flex; align-items: center; justify-content: center;">🌧️ Rain: {d["rain_chance"]}%</div>
     <div class="info-pill {fog_anim_class}" style="display: flex; align-items: center; justify-content: center;">🌫️ Vis: {disp_vis} {unit_vis}</div>
     <div class="info-pill" style="display: flex; align-items: center; justify-content: center;">🌡️ Pres: {disp_press} {unit_press}</div>
