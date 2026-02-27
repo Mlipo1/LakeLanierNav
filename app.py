@@ -507,9 +507,9 @@ live_js = f"""
             }} catch (innerErr) {{ }}
         }}
         
-        updateLive(); // <--- ADD THIS LINE to populate the empty boxes instantly
+        updateLive(); 
         setInterval(updateLive, 1000);
-    } catch (outerErr) { }
+     catch (outerErr) { }
 </script>
 """
 st.components.v1.html(live_js, height=0, width=0)
