@@ -269,8 +269,7 @@ st.markdown(f"""
     .text-red {{ color: #e74c3c; }}
     
     .pill-container {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 25px; margin-top: 5px; }}
-    .info-pill {{ background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 30px; padding: 8px 15px; color: {theme['text']}; font-size: 0.85rem; font-weight: 600; text-align: center; flex: 1 1 calc(33% - 10px); min-width: 130px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); transition: all 0.3s; }}
-    
+    .info-pill { background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 30px; color: {theme['text']}; font-size: 0.82rem; font-weight: 600; text-align: center; flex: 1 1 calc(33% - 10px); min-width: 130px; height: 52px;             /* Forced uniform height */display: flex;            /* Vertical centering */align-items: center; justify-content: center;overflow: hidden;         /* Clips the sunset gradient to the border-radius */padding: 2px 10px;        /* Consistent padding */box-shadow: 0 2px 5px rgba(0,0,0,0.02); transition: all 0.3s; box-sizing: border-box;}    
     .reason-pill {{ display: inline-block; background: rgba(0,0,0,0.1); padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; margin: 3px; font-weight: 700; border: 1px solid rgba(128,128,128,0.3); color: {theme['text']}; }}
 
     .wind-container {{ background: linear-gradient(135deg, #2c3e50, #3498db); border-radius: 20px; padding: 20px; color: white; box-shadow: 0 10px 20px rgba(0,0,0,0.15); margin-bottom: 25px; }}
