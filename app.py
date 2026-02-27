@@ -312,8 +312,7 @@ with col_title:
     st.markdown(f'''
         <h1 class="main-title">⚓ Lanier Navigator</h1>
         <div id="live-clock-text" style="color: {theme['sub_text']}; font-size: 0.95rem; font-weight: 700; margin-top: 2px; margin-bottom: 15px; padding-left: 2px;">
-            📅 {current_date_time}
-        </div>
+            </div>
     ''', unsafe_allow_html=True)
 
 with col_controls:
@@ -436,7 +435,7 @@ uv_anim_class = "uv-pulse" if d['uv'] > 6 else ""
 
 st.markdown(f"""
 <div class="pill-container">
-    <div id="live-sun-pill" class="info-pill" style="{sun_bg} line-height: 1.2; padding: 6px 15px;">{sun_lbl}</div>
+    <div id="live-sun-pill" class="info-pill" style="{sun_bg} line-height: 1.2; padding: 6px 15px;"></div>
     <div class="info-pill {rain_anim_class}" style="display: flex; align-items: center; justify-content: center;">🌧️ Rain: {d["rain_chance"]}%</div>
     <div class="info-pill {fog_anim_class}" style="display: flex; align-items: center; justify-content: center;">🌫️ Vis: {disp_vis} {unit_vis}</div>
     <div class="info-pill" style="display: flex; align-items: center; justify-content: center;">🌡️ Pres: {disp_press} {unit_press}</div>
@@ -507,8 +506,10 @@ live_js = f"""
                 }}
             }} catch (innerErr) {{ }}
         }}
+        
+        updateLive(); // <--- ADD THIS LINE to populate the empty boxes instantly
         setInterval(updateLive, 1000);
-    }} catch (outerErr) {{ }}
+    } catch (outerErr) { }
 </script>
 """
 st.components.v1.html(live_js, height=0, width=0)
