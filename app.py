@@ -440,15 +440,14 @@ uv_anim_class = "uv-pulse" if d['uv'] > 6 else ""
 
 st.markdown(f"""
 <div class="pill-container" style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 10px;">
-    <div id="live-sun-pill" class="info-pill" style="{sun_bg}">
-        {sun_lbl}
-    </div>
-    
-    <div class="info-pill {rain_anim_class}">🌧️ Rain: {d["rain_chance"]}%</div>
-    <div class="info-pill {fog_anim_class}">🌫️ Vis: {disp_vis} {unit_vis}</div>
-    <div class="info-pill">🌡️ Pres: {disp_press} {unit_press}</div>
-    <div class="info-pill">☁️ Clouds: {d["clouds"]}%</div>
-    <div class="info-pill {uv_anim_class}">☀️ UV: {round(d["uv"],1)}</div>
+<div id="live-sun-pill" class="info-pill" style="{sun_bg}">
+{sun_lbl}
+</div>
+<div class="info-pill {rain_anim_class}">🌧️ Rain: {d["rain_chance"]}%</div>
+<div class="info-pill {fog_anim_class}">🌫️ Vis: {disp_vis} {unit_vis}</div>
+<div class="info-pill">🌡️ Pres: {disp_press} {unit_press}</div>
+<div class="info-pill">☁️ Clouds: {d["clouds"]}%</div>
+<div class="info-pill {uv_anim_class}">☀️ UV: {round(d["uv"],1)}</div>
 </div>
 """, unsafe_allow_html=True)
 
