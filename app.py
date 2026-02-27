@@ -269,8 +269,29 @@ st.markdown(f"""
     .text-red {{ color: #e74c3c; }}
     
     .pill-container {{ display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 25px; margin-top: 5px; }}
-    .info-pill {{ background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 30px; padding: 8px 15px; color: {theme['text']}; font-size: 0.85rem; font-weight: 600; text-align: center; flex: 1 1 calc(33% - 10px); min-width: 130px; box-shadow: 0 2px 5px rgba(0,0,0,0.02); transition: all 0.3s; }}
+    .info-pill {
+    background: {theme['card_bg']};
+    border: 1px solid {theme['border']};
+    border-radius: 30px;
     
+    /* Force consistent sizing */
+    height: 50px; 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 1 1 calc(33% - 10px);
+    min-width: 130px;
+    
+    /* Text styling */
+    color: {theme['text']};
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-align: center;
+    line-height: 1.2;
+    padding: 5px 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+    transition: all 0.3s;
+    }
     .reason-pill {{ display: inline-block; background: rgba(0,0,0,0.1); padding: 4px 12px; border-radius: 15px; font-size: 0.8rem; margin: 3px; font-weight: 700; border: 1px solid rgba(128,128,128,0.3); color: {theme['text']}; }}
 
     .wind-container {{ background: linear-gradient(135deg, #2c3e50, #3498db); border-radius: 20px; padding: 20px; color: white; box-shadow: 0 10px 20px rgba(0,0,0,0.15); margin-bottom: 25px; }}
@@ -441,13 +462,14 @@ fog_anim_class = "fog-anim" if d['visibility'] != "N/A" and d['visibility'] < 5 
 uv_anim_class = "uv-pulse" if d['uv'] > 6 else ""
 
 st.markdown(f"""
-<div class="pill-container" style="display: flex; gap: 10px; margin-bottom: 10px;">
-    <div id="live-sun-pill" class="info-pill" style="flex: 1; {sun_bg} line-height: 1.2; padding: 6px 15px; min-height: 45px;"></div>
-    <div class="info-pill {rain_anim_class}" style="display: flex; align-items: center; justify-content: center;">🌧️ Rain: {d["rain_chance"]}%</div>
-    <div class="info-pill {fog_anim_class}" style="display: flex; align-items: center; justify-content: center;">🌫️ Vis: {disp_vis} {unit_vis}</div>
-    <div class="info-pill" style="display: flex; align-items: center; justify-content: center;">🌡️ Pres: {disp_press} {unit_press}</div>
-    <div class="info-pill" style="display: flex; align-items: center; justify-content: center;">☁️ Clouds: {d["clouds"]}%</div>
-    <div class="info-pill {uv_anim_class}" style="display: flex; align-items: center; justify-content: center;">☀️ UV: {round(d["uv"],1)}</div>
+<div class="pill-container" style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 10px;">
+    <div id="live-sun-pill" class="info-pill" style="{sun_bg}"></div>
+    
+    <div class="info-pill {rain_anim_class}">🌧️ Rain: {d["rain_chance"]}%</div>
+    <div class="info-pill {fog_anim_class}">🌫️ Vis: {disp_vis} {unit_vis}</div>
+    <div class="info-pill">🌡️ Pres: {disp_press} {unit_press}</div>
+    <div class="info-pill">☁️ Clouds: {d["clouds"]}%</div>
+    <div class="info-pill {uv_anim_class}">☀️ UV: {round(d["uv"],1)}</div>
 </div>
 """, unsafe_allow_html=True)
 
