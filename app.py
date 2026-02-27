@@ -34,8 +34,7 @@ def fetch_data():
     except Exception: pass
 
     try:
-        meteo_url = "https://api.open-meteo.com/v1/forecast?latitude=34.18&longitude=-83.98&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,visibility,surface_pressure,cloud_cover&daily=sunrise,sunset,precipitation_probability_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York"
-        meteo_res = requests.get(meteo_url, timeout=5).json()
+        meteo_url = "https://api.open-meteo.com/v1/forecast?latitude=34.18&longitude=-83.98&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,visibility,surface_pressure,cloud_cover&hourly=precipitation_probability&daily=sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York"        meteo_res = requests.get(meteo_url, timeout=5).json()
         current, daily = meteo_res['current'], meteo_res['daily']
         data["air_temp"] = current['temperature_2m']
         data["wind_mph"] = current['wind_speed_10m']
@@ -46,6 +45,15 @@ def fetch_data():
         data["pressure"] = current['surface_pressure']
         data["clouds"] = current['cloud_cover']
         data["rain_chance"] = daily['precipitation_probability_max'][0]
+        data["sunrise"] = datetime.strptime(daily['sunrise'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
+        data["sunset"] = datetime.strptime(daily['sunset'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
+        current_time_iso = current['time'] # Looks like "2026-02-27T17:00"
+        try:
+            current_hour_index = hourly['time'].index(current_time_iso)
+            data["rain_chance"] = hourly['precipitation_probability'][current_hour_index]
+        except ValueError:
+            data["rain_chance"] = 0 # Fallback if time isn't found
+            
         data["sunrise"] = datetime.strptime(daily['sunrise'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
         data["sunset"] = datetime.strptime(daily['sunset'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
     except Exception: pass
