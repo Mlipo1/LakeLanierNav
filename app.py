@@ -26,13 +26,22 @@ def fetch_data():
         "wind_mph": 0, "wind_dir": 0, "gusts": 0, "uv": 0, 
         "sunrise": "N/A", "sunset": "N/A", "rain_chance": 0, "visibility": "N/A", "pressure": "N/A", "clouds": 0
     }
-    try:
-        usgs_url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400&parameterCd=00062"
-        usgs_res = requests.get(usgs_url, timeout=5).json()
-        val = usgs_res['value']['timeSeries'][0]['values'][0]['value'][0]['value']
-        data["level"] = float(val)
-    except Exception: pass
+    
+    # USGS Data with Retry Logic to prevent caching "N/A"
+    usgs_url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400&parameterCd=00062"
+    for attempt in range(3):
+        try:
+            usgs_res = requests.get(usgs_url, timeout=5).json()
+            val = usgs_res['value']['timeSeries'][0]['values'][0]['value'][0]['value']
+            data["level"] = float(val)
+            break  # Success! Exit the retry loop
+        except Exception as e:
+            print(f"USGS attempt {attempt + 1} failed: {e}")
+            if attempt == 2:  # If it fails on the 3rd try
+                st.cache_data.clear()  # Drop the cache so we don't get stuck on "N/A"
+            time.sleep(1)  # Wait 1 second before retrying
 
+    # Weather Data
     try:
         meteo_url = "https://api.open-meteo.com/v1/forecast?latitude=34.18&longitude=-83.98&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,visibility,surface_pressure,cloud_cover&hourly=precipitation_probability&daily=sunrise,sunset&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York"        
         meteo_res = requests.get(meteo_url, timeout=5).json()
@@ -64,8 +73,8 @@ def fetch_data():
 
     except Exception as e: 
         print(f"Weather Error: {e}")
-        pass
 
+    # Lake Monster Data
     try:
         lm_url = "https://lakemonster.com/lake/GA/Lake-Lanier-234"
         headers = {'User-Agent': 'Mozilla/5.0'}
@@ -74,11 +83,13 @@ def fetch_data():
         if match:
             scraped_temp = int(match.group(1))
             if 35 <= scraped_temp <= 95: data["water_temp"] = scraped_temp
-    except Exception: pass 
+    except Exception as e: 
+        print(f"Lake Monster Error: {e}")
 
-    # NEW: Add Last Updated Timestamp
+    # Timestamp
     now_est = datetime.utcnow() - timedelta(hours=5)
     data["last_updated"] = now_est.strftime("%I:%M %p")
+    
     return data
 
 @st.cache_data(ttl=300)
