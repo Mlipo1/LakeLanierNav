@@ -46,30 +46,51 @@ def fetch_data():
         meteo_url = "https://api.open-meteo.com/v1/forecast?latitude=34.18&longitude=-83.98&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,visibility,surface_pressure,cloud_cover&hourly=precipitation_probability&daily=sunrise,sunset,precipitation_probability_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York"        
         meteo_res = requests.get(meteo_url, timeout=5).json()
         
-        current = meteo_res['current']
-        daily = meteo_res['daily']
-        hourly = meteo_res['hourly']
-        
-        data["air_temp"] = current['temperature_2m']
-        data["wind_mph"] = current['wind_speed_10m']
-        data["wind_dir"] = current['wind_direction_10m']
-        data["gusts"] = current['wind_gusts_10m']
-        data["uv"] = current['uv_index']
-        data["visibility"] = current['visibility'] / 1609.34
-        data["pressure"] = current['surface_pressure']
-        data["clouds"] = current['cloud_cover']
-        
-        # Format Sun Times
-        data["sunrise"] = datetime.strptime(daily['sunrise'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
-        data["sunset"] = datetime.strptime(daily['sunset'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
-        
-        # Handle Rain Chance logic
-        current_time_iso = current['time'][:14] + "00" 
-        try:
-            current_hour_index = hourly['time'].index(current_time_iso)
-            data["rain_chance"] = hourly['precipitation_probability'][current_hour_index]
-        except (ValueError, KeyError):
-            data["rain_chance"] = 0
+        # Prevent crash if the API returns an error message instead of weather data
+        if "error" in meteo_res:
+            print(f"Open-Meteo API Error: {meteo_res.get('reason')}")
+        else:
+            current = meteo_res.get('current', {})
+            daily = meteo_res.get('daily', {})
+            hourly = meteo_res.get('hourly', {})
+            
+            # Use .get() and explicitly check for None to prevent TypeErrors
+            t_air = current.get('temperature_2m')
+            data["air_temp"] = t_air if t_air is not None else "N/A"
+            
+            data["wind_mph"] = current.get('wind_speed_10m') or 0
+            data["wind_dir"] = current.get('wind_direction_10m') or 0
+            data["gusts"] = current.get('wind_gusts_10m') or 0
+            data["uv"] = current.get('uv_index') or 0
+            data["clouds"] = current.get('cloud_cover') or 0
+            
+            # Handle math on potentially missing/None values
+            vis = current.get('visibility')
+            data["visibility"] = (vis / 1609.34) if vis is not None else "N/A"
+            
+            pres = current.get('surface_pressure')
+            data["pressure"] = pres if pres is not None else "N/A"
+            
+            # Format Sun Times safely
+            if 'sunrise' in daily and daily['sunrise']:
+                data["sunrise"] = datetime.strptime(daily['sunrise'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
+            if 'sunset' in daily and daily['sunset']:
+                data["sunset"] = datetime.strptime(daily['sunset'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
+            
+            # Handle Rain Chance logic safely
+            if 'time' in current and current['time']:
+                current_time_iso = current['time'][:14] + "00" 
+                try:
+                    current_hour_index = hourly.get('time', []).index(current_time_iso)
+                    rain_prob = hourly['precipitation_probability'][current_hour_index]
+                    data["rain_chance"] = rain_prob if rain_prob is not None else 0
+                except (ValueError, KeyError, IndexError):
+                    # Fallback to daily max if available
+                    if 'precipitation_probability_max' in daily and daily['precipitation_probability_max']:
+                        max_rain = daily['precipitation_probability_max'][0]
+                        data["rain_chance"] = max_rain if max_rain is not None else 0
+                    else:
+                        data["rain_chance"] = 0
 
     except Exception as e: 
         print(f"Weather Error: {e}")
