@@ -42,62 +42,45 @@ def fetch_data():
 
     # Weather Data
     try:
-        # MOVED uv_index and visibility to the hourly parameter to prevent API rejection
-        meteo_url = "https://api.open-meteo.com/v1/forecast?latitude=34.18&longitude=-83.98&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,surface_pressure,cloud_cover&hourly=precipitation_probability,uv_index,visibility&daily=sunrise,sunset,precipitation_probability_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York"        
-        meteo_res = requests.get(meteo_url, timeout=5).json()
+        # Using the exact URL that generated your successful JSON
+        meteo_url = "https://api.open-meteo.com/v1/forecast?latitude=34.18&longitude=-83.98&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,visibility,surface_pressure,cloud_cover&hourly=precipitation_probability&daily=sunrise,sunset,precipitation_probability_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York"
         
-        if "error" in meteo_res:
-            print(f"Open-Meteo API Error: {meteo_res.get('reason')}")
-        else:
-            current = meteo_res.get('current', {})
-            daily = meteo_res.get('daily', {})
-            hourly = meteo_res.get('hourly', {})
-            
-            # Explicit 'is not None' checks prevent crashes if the API returns null
-            t = current.get('temperature_2m')
-            data["air_temp"] = t if t is not None else "N/A"
-            
-            w = current.get('wind_speed_10m')
-            data["wind_mph"] = w if w is not None else 0
-            
-            d_dir = current.get('wind_direction_10m')
-            data["wind_dir"] = d_dir if d_dir is not None else 0
-            
-            g = current.get('wind_gusts_10m')
-            data["gusts"] = g if g is not None else 0
-            
-            c = current.get('cloud_cover')
-            data["clouds"] = c if c is not None else 0
-            
-            p = current.get('surface_pressure')
-            data["pressure"] = p if p is not None else "N/A"
-            
-            # Format Sun Times safely
-            if 'sunrise' in daily and daily['sunrise']:
-                data["sunrise"] = datetime.strptime(daily['sunrise'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
-            if 'sunset' in daily and daily['sunset']:
-                data["sunset"] = datetime.strptime(daily['sunset'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
-            
-            # Extract hourly data safely (Rain, Vis, UV)
-            if 'time' in current and current['time']:
-                current_time_iso = current['time'][:14] + "00" 
-                try:
-                    idx = hourly.get('time', []).index(current_time_iso)
-                    
-                    r = hourly.get('precipitation_probability', [])[idx]
-                    data["rain_chance"] = r if r is not None else 0
-                    
-                    v = hourly.get('visibility', [])[idx]
-                    data["visibility"] = (v / 1609.34) if v is not None else "N/A"
-                    
-                    u = hourly.get('uv_index', [])[idx]
-                    data["uv"] = u if u is not None else 0
-                    
-                except (ValueError, IndexError, KeyError):
-                    pass
+        # Added a standard User-Agent. Some hosting providers or firewalls block raw Python requests.
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
+        response = requests.get(meteo_url, headers=headers, timeout=10)
+        
+        # Force the code to jump to the except block if the web request is blocked/fails
+        response.raise_for_status() 
+        
+        meteo_res = response.json()
+        current = meteo_res['current']
+        daily = meteo_res['daily']
+        hourly = meteo_res['hourly']
+        
+        data["air_temp"] = current['temperature_2m']
+        data["wind_mph"] = current['wind_speed_10m']
+        data["wind_dir"] = current['wind_direction_10m']
+        data["gusts"] = current['wind_gusts_10m']
+        data["uv"] = current['uv_index']
+        data["visibility"] = current['visibility'] / 1609.34
+        data["pressure"] = current['surface_pressure']
+        data["clouds"] = current['cloud_cover']
+        
+        # Format Sun Times safely
+        data["sunrise"] = datetime.strptime(daily['sunrise'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
+        data["sunset"] = datetime.strptime(daily['sunset'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
+        
+        # Handle Rain Chance logic based precisely on your JSON structure
+        current_time_iso = current['time'][:14] + "00" 
+        try:
+            current_hour_index = hourly['time'].index(current_time_iso)
+            data["rain_chance"] = hourly['precipitation_probability'][current_hour_index]
+        except ValueError:
+            data["rain_chance"] = daily['precipitation_probability_max'][0]
 
     except Exception as e: 
-        print(f"Weather Error: {e}")
+        # VISUAL ERROR: This forces the actual crash reason to display at the top of your app!
+        st.error(f"🚨 Weather Fetch Error: {str(e)}")
 
     # Lake Monster Data
     try:
