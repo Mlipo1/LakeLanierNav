@@ -64,12 +64,12 @@ def fetch_data():
         data["sunset"] = datetime.strptime(daily['sunset'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
         
         # Handle Rain Chance logic
-        current_time_iso = current['time'] 
+        current_time_iso = current['time'][:14] + "00" 
         try:
             current_hour_index = hourly['time'].index(current_time_iso)
             data["rain_chance"] = hourly['precipitation_probability'][current_hour_index]
         except (ValueError, KeyError):
-            data["rain_chance"] = daily['precipitation_probability_max'][0]
+            data["rain_chance"] = 0
 
     except Exception as e: 
         print(f"Weather Error: {e}")
