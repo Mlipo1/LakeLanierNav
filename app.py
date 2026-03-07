@@ -27,29 +27,6 @@ def fetch_data():
         "sunrise": "N/A", "sunset": "N/A", "rain_chance": 0, "visibility": "N/A", "pressure": "N/A", "clouds": 0
     }
     
-    # USGS Data with Retry Logic to prevent caching "N/A"
-    usgs_url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400&parameterCd=00062"
-    for attempt in range(3):
-        try:
-            usgs_res = requests.get(usgs_url, timeout=5).json()
-            val = usgs_res['value']['timeSeries'][0]['values'][0]['value'][0]['value']
-            data["level"] = float(val)
-            break  # Success! Exit the retry loop
-        except Exception as e:
-            print(f"USGS attempt {attempt + 1} failed: {e}")
-            if attempt == 2:  # If it fails on the 3rd try
-                st.cache_data.clear()  # Drop the cache so we don't get stuck on "N/A"
-            time.sleep(1)  # Wait 1 second before retrying
-
-    # Weather Data
-    @st.cache_data(ttl=300) 
-def fetch_data():
-    data = {
-        "level": "N/A", "air_temp": "N/A", "water_temp": 47, 
-        "wind_mph": 0, "wind_dir": 0, "gusts": 0, "uv": 0, 
-        "sunrise": "N/A", "sunset": "N/A", "rain_chance": 0, "visibility": "N/A", "pressure": "N/A", "clouds": 0
-    }
-    
     # USGS Data with Retry Logic
     usgs_url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400&parameterCd=00062"
     for attempt in range(3):
