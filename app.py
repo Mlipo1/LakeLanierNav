@@ -42,45 +42,46 @@ def fetch_data():
 
     # Weather Data
     try:
-        # Using the exact URL that generated your successful JSON
-        meteo_url = "https://api.open-meteo.com/v1/forecast?latitude=34.18&longitude=-83.98&current=temperature_2m,wind_speed_10m,wind_direction_10m,wind_gusts_10m,uv_index,visibility,surface_pressure,cloud_cover&hourly=precipitation_probability&daily=sunrise,sunset,precipitation_probability_max&temperature_unit=fahrenheit&wind_speed_unit=mph&timezone=America%2FNew_York"
+        # Note: Replace this with your full, un-redacted API key
+        #Free api key, idc if you use
+        API_KEY = "Ctel2fkIkgMDlQPIx8rN7WDPjxCLRNDY" 
+        pw_url = f"https://api.pirateweather.net/forecast/{API_KEY}/34.18,-83.98?units=us"
         
-        # Added a standard User-Agent. Some hosting providers or firewalls block raw Python requests.
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'}
-        response = requests.get(meteo_url, headers=headers, timeout=10)
-        
-        # Force the code to jump to the except block if the web request is blocked/fails
+        response = requests.get(pw_url, timeout=10)
         response.raise_for_status() 
         
-        meteo_res = response.json()
-        current = meteo_res['current']
-        daily = meteo_res['daily']
-        hourly = meteo_res['hourly']
+        pw_res = response.json()
+        currently = pw_res.get('currently', {})
+        daily_data = pw_res.get('daily', {}).get('data', [{}])[0]
         
-        data["air_temp"] = current['temperature_2m']
-        data["wind_mph"] = current['wind_speed_10m']
-        data["wind_dir"] = current['wind_direction_10m']
-        data["gusts"] = current['wind_gusts_10m']
-        data["uv"] = current['uv_index']
-        data["visibility"] = current['visibility'] / 1609.34
-        data["pressure"] = current['surface_pressure']
-        data["clouds"] = current['cloud_cover']
+        # Temperatures & Wind
+        data["air_temp"] = currently.get('temperature', "N/A")
+        data["wind_mph"] = currently.get('windSpeed', 0)
+        data["wind_dir"] = currently.get('windBearing', 0)
+        data["gusts"] = currently.get('windGust', 0)
         
-        # Format Sun Times safely
-        data["sunrise"] = datetime.strptime(daily['sunrise'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
-        data["sunset"] = datetime.strptime(daily['sunset'][0], "%Y-%m-%dT%H:%M").strftime("%I:%M %p")
+        # Conditions (Pirate Weather 'us' units return visibility directly in miles)
+        data["uv"] = currently.get('uvIndex', 0)
+        data["visibility"] = currently.get('visibility', "N/A") 
+        data["pressure"] = currently.get('pressure', "N/A") 
         
-        # Handle Rain Chance logic based precisely on your JSON structure
-        current_time_iso = current['time'][:14] + "00" 
-        try:
-            current_hour_index = hourly['time'].index(current_time_iso)
-            data["rain_chance"] = hourly['precipitation_probability'][current_hour_index]
-        except ValueError:
-            data["rain_chance"] = daily['precipitation_probability_max'][0]
+        # Cloud cover and Rain chance are returned as decimals (0.0 to 1.0)
+        clouds = currently.get('cloudCover', 0)
+        data["clouds"] = int(clouds * 100) if clouds is not None else 0
+        
+        rain_prob = currently.get('precipProbability', daily_data.get('precipProbability', 0))
+        data["rain_chance"] = int(rain_prob * 100) if rain_prob is not None else 0
+        
+        # Sun Times (Convert Unix timestamps to EST/EDT to match your UI logic)
+        if 'sunriseTime' in daily_data:
+            sr_dt = datetime.utcfromtimestamp(daily_data['sunriseTime']) - timedelta(hours=5)
+            data["sunrise"] = sr_dt.strftime("%I:%M %p")
+        if 'sunsetTime' in daily_data:
+            ss_dt = datetime.utcfromtimestamp(daily_data['sunsetTime']) - timedelta(hours=5)
+            data["sunset"] = ss_dt.strftime("%I:%M %p")
 
     except Exception as e: 
-        # VISUAL ERROR: This forces the actual crash reason to display at the top of your app!
-        st.error(f"🚨 Weather Fetch Error: {str(e)}")
+        st.error(f"🚨 Pirate Weather Fetch Error: {str(e)}")
 
     # Lake Monster Data
     try:
