@@ -38,7 +38,7 @@ def fetch_data():
         "sunrise": "N/A", "sunset": "N/A", "rain_chance": 0, "visibility": "N/A", "pressure": "N/A", "clouds": 0
     }
 
-    # USGS Data — Lake Level + Water Temperature (parameter 00010 = water temp in Celsius)
+    # USGS Data — Lake Level
     usgs_base = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400"
 
     for attempt in range(3):
@@ -542,127 +542,11 @@ if d['air_temp'] != "N/A":
     elif d['air_temp'] <= 45: air_temp_color = "#74b9ff"
     elif d['air_temp'] <= 32: air_temp_color = "#81ecec"
 
-# Build per-source rows for the water temp breakdown card
-wt_source_rows = ""
-src_icons = {
-    "USGS Buford Dam":      "🏛️",
-    "USGS Flowery Branch":  "📍",
-    "Open-Meteo (ERA5)":    "🛰️",
-    "Lake Monster":         "🐊",
-}
-for src_name, src_val in wt_data["sources"].items():
-    icon = src_icons.get(src_name, "🌡️")
-    if st.session_state.is_metric:
-        disp_src_val = f"{round((src_val - 32) * 5/9, 1)}{unit_temp}"
-    else:
-        disp_src_val = f"{src_val}{unit_temp}"
-    # Highlight if this source matches the median (within 0.5°)
-    is_median = abs(src_val - float(wt_median_f)) <= 0.5 if wt_median_f != "N/A" else False
-    badge = " ✓" if is_median else ""
-    wt_source_rows += f"""
-        <div style="display:flex; justify-content:space-between; align-items:center;
-                    padding:5px 0; border-bottom:1px solid {theme['border']}; font-size:0.75rem;">
-            <span style="color:{theme['sub_text']}; font-weight:600;">{icon} {src_name}{badge}</span>
-            <span style="color:{theme['text']}; font-weight:800; font-family:'Barlow Condensed',sans-serif; font-size:0.88rem;">{disp_src_val}</span>
-        </div>"""
-
-conf_color = {"High": "#2ecc71", "Medium": "#f1c40f", "Low (1 source)": "#e67e22"}.get(wt_data["confidence"], theme['sub_text'])
-
-# Spread display
-if disp_water_high != "N/A" and disp_water_low != "N/A":
-    spread_html = (
-        f"<span style='color:#74b9ff;'>↓{disp_water_low}{unit_temp}</span>"
-        f"&nbsp;–&nbsp;"
-        f"<span style='color:#e74c3c;'>↑{disp_water_high}{unit_temp}</span>"
-    )
-else:
-    spread_html = "N/A"
-
-air_temp_color = theme['text']
-if d['air_temp'] != "N/A":
-    if d['air_temp'] >= 85: air_temp_color = "#ff7675"
-    elif d['air_temp'] >= 75: air_temp_color = "#fdcb6e"
-    elif d['air_temp'] <= 45: air_temp_color = "#74b9ff"
-    elif d['air_temp'] <= 32: air_temp_color = "#81ecec"
-
-# Build source rows for popup
-_src_rows_html = ""
-src_icon_map = {"Lake Monster": "🐊", "Omnia Fishing": "🎣"}
-for sn, sv in wt_data["sources"].items():
-    ico = src_icon_map.get(sn, "🌡️")
-    if st.session_state.is_metric:
-        dsv = str(round((sv - 32) * 5 / 9, 1)) + unit_temp
-    else:
-        dsv = str(sv) + unit_temp
-    near = wt_data["median"] != "N/A" and abs(sv - float(wt_data["median"])) <= 0.5
-    check = '<span class="src-check">median</span>' if near else ""
-    _src_rows_html += (
-        f'<div class="src-row">'
-        f'<div class="src-name">{ico} {sn}{check}</div>'
-        f'<div class="src-val">{dsv}</div>'
-        f'</div>'
-    )
-if not _src_rows_html:
-    _src_rows_html = '<div style="text-align:center;padding:14px;opacity:0.4;font-size:0.82rem;">No sources available</div>'
-
-# Build water temp 24h history chart SVG
-def build_wt_chart_svg(pts, is_metric, unit_temp, card_bg, border, sub_text, text):
-    if not pts or len(pts) < 3:
-        return '<div style="text-align:center;padding:20px;opacity:0.5;font-size:0.82rem;">No history data available</div>'
-    if is_metric:
-        levels = [round((p[1] - 32) * 5 / 9, 1) for p in pts]
-    else:
-        levels = [p[1] for p in pts]
-    labels = [p[0] for p in pts]
-    n = len(pts)
-    min_l, max_l = min(levels), max(levels)
-    pad = max(0.3, (max_l - min_l) * 0.25)
-    y_min, y_max = min_l - pad, max_l + pad
-    W, H = 500, 110
-    pl, pr, pt_p, pb = 46, 12, 10, 26
-    pw, ph = W - pl - pr, H - pt_p - pb
-
-    def cx(i): return pl + (i / (n - 1)) * pw
-    def cy(v): return pt_p + ph - ((v - y_min) / (y_max - y_min)) * ph
-
-    pts_str = " ".join(f"{cx(i):.1f},{cy(v):.1f}" for i, v in enumerate(levels))
-    area_str = f"{cx(0):.1f},{pt_p + ph} " + pts_str + f" {cx(n-1):.1f},{pt_p + ph}"
-
-    y_ticks = [y_min + (y_max - y_min) * k / 2 for k in range(3)]
-    grid = "".join(
-        f'<line x1="{pl}" y1="{cy(yv):.1f}" x2="{W-pr}" y2="{cy(yv):.1f}" stroke="{border}" stroke-width="1" stroke-dasharray="4,3"/>'
-        f'<text x="{pl-4}" y="{cy(yv)+4:.1f}" text-anchor="end" font-size="9" fill="{sub_text}" font-family="Barlow Condensed,sans-serif" font-weight="600">{yv:.1f}</text>'
-        for yv in y_ticks
-    )
-    x_idxs = [0, n // 4, n // 2, 3 * n // 4, n - 1]
-    xlbls = "".join(
-        f'<text x="{cx(i):.1f}" y="{H-4}" text-anchor="middle" font-size="9" fill="{sub_text}" font-family="Barlow Condensed,sans-serif" font-weight="600">{labels[i]}</text>'
-        for i in x_idxs if 0 <= i < n
-    )
-    last_cx, last_cy = cx(n - 1), cy(levels[-1])
-    dot_col = "#2ecc71" if levels[-1] >= levels[0] else "#e74c3c"
-
-    return (
-        f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;overflow:visible;">'
-        f'<defs><linearGradient id="wtGrad" x1="0" y1="0" x2="0" y2="1">'
-        f'<stop offset="0%" stop-color="#f39c12" stop-opacity="0.4"/>'
-        f'<stop offset="100%" stop-color="#f39c12" stop-opacity="0.03"/>'
-        f'</linearGradient></defs>'
-        f'{grid}{xlbls}'
-        f'<polyline points="{area_str}" fill="url(#wtGrad)"/>'
-        f'<polyline points="{pts_str}" fill="none" stroke="#f39c12" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>'
-        f'<circle cx="{last_cx:.1f}" cy="{last_cy:.1f}" r="4.5" fill="{dot_col}" stroke="{card_bg}" stroke-width="2"/>'
-        f'</svg>'
-    )
-
-wt_chart_svg = build_wt_chart_svg(wt_history, st.session_state.is_metric, unit_temp,
-                                   theme['card_bg'], theme['border'], theme['sub_text'], theme['text'])
-
 st.markdown(f"""
 <style>
   .cards-grid {{
     display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 12px; margin-bottom: 24px; /* Added more margin since expander is gone */
+    gap: 12px; margin-bottom: 24px;
   }}
   .card {{
     background: {theme['card_bg']}; border: 1px solid {theme['border']};
@@ -716,55 +600,6 @@ st.markdown(f"""
   </div>
 </div>
 """, unsafe_allow_html=True)
-
-# ── WATER TEMP DETAIL — native st.expander (works on all devices) ──
-with st.expander(f"🌡️ Water Temp Details — {water_temp_display} ({wt_data['confidence']} confidence)"):
-    # Source breakdown
-    st.markdown(f"""
-    <div style="font-family:'Barlow Condensed',sans-serif; font-size:0.7rem; font-weight:700;
-                text-transform:uppercase; letter-spacing:1.2px; color:{theme['sub_text']};
-                margin-bottom:10px;">Source Readings</div>
-    """, unsafe_allow_html=True)
-
-    src_icon_map2 = {
-        "Lake Monster": "🐊",
-        "Omnia Fishing": "🎣",
-    }
-    for sn, sv in wt_data["sources"].items():
-        ico = src_icon_map2.get(sn, "🌡️")
-        dsv = f"{round((sv-32)*5/9,1)}{unit_temp}" if st.session_state.is_metric else f"{sv}{unit_temp}"
-        near = wt_data["median"] != "N/A" and abs(sv - float(wt_data["median"])) <= 0.5
-        badge = f'<span style="background:rgba(46,204,113,0.15);color:#2ecc71;border:1px solid rgba(46,204,113,0.3);border-radius:8px;font-size:0.6rem;font-weight:800;padding:1px 6px;margin-left:5px;">median</span>' if near else ""
-        st.markdown(f"""
-        <div style="display:flex;justify-content:space-between;align-items:center;
-                    padding:9px 14px;border-radius:10px;margin-bottom:6px;
-                    background:{'rgba(255,255,255,0.04)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'};
-                    border:1px solid {theme['border']};">
-          <span style="font-size:0.85rem;font-weight:600;color:{theme['sub_text']};">{ico} {sn}{badge}</span>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:{theme['text']};">{dsv}</span>
-        </div>
-        """, unsafe_allow_html=True)
-
-    if not wt_data["sources"]:
-        st.markdown(f'<div style="text-align:center;padding:14px;opacity:0.4;font-size:0.85rem;">No sources available</div>', unsafe_allow_html=True)
-
-    # 24h chart
-    st.markdown(f"""
-    <div style="font-family:'Barlow Condensed',sans-serif; font-size:0.7rem; font-weight:700;
-                text-transform:uppercase; letter-spacing:1.2px; color:{theme['sub_text']};
-                margin:16px 0 10px;">24-Hour Trend (USGS Flowery Branch reference sensor)</div>
-    <div style="background:{'rgba(0,0,0,0.18)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'};
-                border:1px solid {theme['border']}; border-radius:12px; padding:14px 12px 8px;">
-      {wt_chart_svg}
-    </div>
-    <div style="text-align:center;font-size:0.62rem;opacity:0.3;margin-top:12px;line-height:1.6;">
-      Refreshes every 5 min · Lake Monster (lakemonster.com) · Omnia Fishing (omniafishing.com)<br>
-      ⚠ Surface temp varies by depth, cove &amp; time of day
-    </div>
-    """, unsafe_allow_html=True)
-
-
-
 
 # --- Info Pills ---
 try:
@@ -1094,7 +929,7 @@ places = [
     {"name": "Bullfrogs Bar & Grille",    "lat": 34.1877198, "lon": -84.0163927, "type": "Dining", "hours": "Daily 11:30am–midnight (Fri–Sat till 1am)",              "web": "https://www.lanierislands.com/dining/"},
     {"name": "Sidney's Restaurant",       "lat": 34.1875035, "lon": -84.0165245, "type": "Dining", "hours": "Breakfast daily · Dinner Fri–Sat 6–9pm",                 "web": "https://www.lanierislands.com/dining/"},
     {"name": "Paradise Beach Cantina",    "lat": 34.1777770, "lon": -84.0294344, "type": "Dining", "hours": "Seasonal (waterpark hours)",                             "web": "https://www.margaritavilleresorts.com/"},
-    {"name": "Smokey Q BBQ",              "lat": 34.2088524, "lon": -84.0993836, "type": "Dining", "hours": "Call ahead — seasonal hours",                           "web": "https://lakelanier.com/directory/restaurants/"},
+    {"name": "Smokey Q BBQ",              "lat": 34.2088524, "lon": -84.0993836, "type": "Dining", "hours": "Call ahead — seasonal hours",                            "web": "https://lakelanier.com/directory/restaurants/"},
 
     # ══════════════════════════════════════════════════════
     # FUEL — on-water fuel docks
@@ -1108,7 +943,7 @@ places = [
     # ══════════════════════════════════════════════════════
     # MARINAS
     # ══════════════════════════════════════════════════════
-    {"name": "Aqualand Marina",            "lat": 34.2005787, "lon": -83.9588154, "type": "Marina", "hours": "Mon–Sat 10am–5pm",      "web": "https://lakelanier.com/directory/marinas/aqualand-marina/"},
+    {"name": "Aqualand Marina",             "lat": 34.2005787, "lon": -83.9588154, "type": "Marina", "hours": "Mon–Sat 10am–5pm",      "web": "https://lakelanier.com/directory/marinas/aqualand-marina/"},
     {"name": "Port Royale Marina",         "lat": 34.2432297, "lon": -83.9617131, "type": "Marina", "hours": "Mon–Sat 9am–5pm · Sun 10am–4pm", "web": "https://www.bestinboating.com/"},
     {"name": "Safe Harbor Hideaway Bay",   "lat": 34.1840423, "lon": -83.9387991, "type": "Marina", "hours": "Daily 9am–5pm",          "web": "https://lakelanier.com/directory/marinas/hideaway-bay-marina/"},
     {"name": "Bald Ridge Marina",          "lat": 34.2098813, "lon": -84.1001233, "type": "Marina", "hours": "Mon–Fri 9am–5pm",        "web": "https://lakelanier.com/directory/marinas/bald-ridge-marina/"},
@@ -1170,8 +1005,6 @@ places = [
     # --- State Park ---
     {"name": "Don Carter State Park",      "lat": 34.3875314, "lon": -83.7479736, "type": "Launch", "hours": "Daily 8am–5pm (fee req)", "web": "https://gastateparks.org/DonCarter"},
 ]
-
-
 
 places_json = json.dumps(places)
 map_tile_url = ("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
@@ -1332,7 +1165,6 @@ window.filterSearch=function(){{
         }});
     }} else {{ rd.style.display='none'; }}
 }};
-
 
 var watchId=null,userMarker=null,routeLine=null,targetMarker=null,currentTarget=null;
 var isNavigating=false,mapLocked=true,lastLat=null,lastLon=null,currentHeading=0,lockedScrollY=0;
