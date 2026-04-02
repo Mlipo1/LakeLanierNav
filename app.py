@@ -7,6 +7,17 @@ import re
 import json
 from datetime import datetime, timedelta
 
+def _eastern_offset(utc_dt=None):
+    """Return correct US Eastern UTC offset as timedelta, DST-aware via date math (works on UTC servers)."""
+    if utc_dt is None:
+        utc_dt = datetime.utcnow()
+    year = utc_dt.year
+    mar1 = datetime(year, 3, 1)
+    dst_start = (mar1 + timedelta(days=(6 - mar1.weekday()) % 7 + 7)).replace(hour=7)  # 2nd Sun Mar, 2am EST
+    nov1 = datetime(year, 11, 1)
+    dst_end = (nov1 + timedelta(days=(6 - nov1.weekday()) % 7)).replace(hour=6)         # 1st Sun Nov, 2am EDT
+    return timedelta(hours=4 if dst_start <= utc_dt < dst_end else 5)
+
 st.set_page_config(page_title="Lanier Navigator", layout="centered", page_icon="⚓")
 
 # --- Persistent State Management (URL Query Params) ---
@@ -70,25 +81,16 @@ def fetch_data():
         data["rain_chance"] = int(rain_prob * 100) if rain_prob is not None else 0
 
         if 'sunriseTime' in daily_data:
-            sr_dt = datetime.utcfromtimestamp(daily_data['sunriseTime'])
-            # DST-aware Eastern: EDT = UTC-4 (Mar-Nov), EST = UTC-5 (Nov-Mar)
-            import time as _time
-            is_dst = bool(_time.localtime(daily_data['sunriseTime']).tm_isdst)
-            et_offset = timedelta(hours=4 if is_dst else 5)
-            data["sunrise"] = (sr_dt - et_offset).strftime("%I:%M %p")
+            sr_utc = datetime.utcfromtimestamp(daily_data['sunriseTime'])
+            data["sunrise"] = (sr_utc - _eastern_offset(sr_utc)).strftime("%I:%M %p")
         if 'sunsetTime' in daily_data:
-            ss_dt = datetime.utcfromtimestamp(daily_data['sunsetTime'])
-            is_dst = bool(_time.localtime(daily_data['sunsetTime']).tm_isdst)
-            et_offset = timedelta(hours=4 if is_dst else 5)
-            data["sunset"] = (ss_dt - et_offset).strftime("%I:%M %p")
+            ss_utc = datetime.utcfromtimestamp(daily_data['sunsetTime'])
+            data["sunset"] = (ss_utc - _eastern_offset(ss_utc)).strftime("%I:%M %p")
 
     except Exception as e:
         st.error(f"🚨 Pirate Weather Fetch Error: {str(e)}")
 
-    import time as _time
-    _is_dst = bool(_time.daylight and _time.localtime().tm_isdst)
-    _et_offset = timedelta(hours=4 if _is_dst else 5)
-    now_est = datetime.utcnow() - _et_offset
+    now_est = datetime.utcnow() - _eastern_offset()
     data["last_updated"] = now_est.strftime("%I:%M %p")
 
     return data
@@ -210,9 +212,7 @@ def fetch_water_temp_history():
         res = requests.get(url, timeout=6).json()
         values = res['value']['timeSeries'][0]['values'][0]['value']
 
-        import time as _time
-        _is_dst = bool(_time.daylight and _time.localtime().tm_isdst)
-        _et_offset = timedelta(hours=4 if _is_dst else 5)
+        _et_offset = _eastern_offset()
 
         chart_points = []
         for v in values:
@@ -250,7 +250,7 @@ def fetch_level_trend():
         for v in values:
             try:
                 dt_str = v['dateTime'][:16]  # "2024-04-01T14:30"
-                dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M") - timedelta(hours=5)
+                dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M") - _eastern_offset()
                 level = float(v['value'])
                 chart_points.append((dt.strftime("%H:%M"), level))
             except Exception:
@@ -406,10 +406,7 @@ def get_safety_alert(d, wave):
         alerts.append("❄️ <strong>Freezing Conditions:</strong> Watch for black ice on boat ramps and slippery decks.")
 
     try:
-        import time as _time
-        _is_dst = bool(_time.daylight and _time.localtime().tm_isdst)
-        _et_offset = timedelta(hours=4 if _is_dst else 5)
-        now_est = datetime.utcnow() - _et_offset
+        now_est = datetime.utcnow() - _eastern_offset()
         curr_mins = now_est.time().hour * 60 + now_est.time().minute
         ss_time = datetime.strptime(d["sunset"], "%I:%M %p").time()
         ss_mins = ss_time.hour * 60 + ss_time.minute
@@ -446,11 +443,7 @@ trend_24h, chart_points = fetch_level_trend()
 wave_height = round(0.016 * (d["wind_mph"] ** 1.5), 1)
 alerts = get_safety_alert(d, wave_height)
 
-# DST-aware Eastern time
-import time as _time
-_is_dst = bool(_time.daylight and _time.localtime().tm_isdst)
-_et_offset = timedelta(hours=4 if _is_dst else 5)
-now_est = datetime.utcnow() - _et_offset
+now_est = datetime.utcnow() - _eastern_offset()
 
 # Metric Conversions
 if st.session_state.is_metric:
@@ -711,16 +704,15 @@ for sn, sv in wt_data["sources"].items():
     else:
         dsv = str(sv) + unit_temp
     near = wt_data["median"] != "N/A" and abs(sv - float(wt_data["median"])) <= 0.5
-    bdg = " ✓" if near else ""
+    check = '<span class="wt-check">median</span>' if near else ""
     _src_rows_html += (
-        f'<div style="display:flex;justify-content:space-between;align-items:center;'
-        f'padding:7px 0;border-bottom:1px solid {theme["border"]};font-size:0.8rem;">'
-        f'<span style="color:{theme["sub_text"]};font-weight:600;">{ico} {sn}{bdg}</span>'
-        f'<span style="color:{theme["text"]};font-weight:800;font-size:0.95rem;">{dsv}</span>'
+        f'<div class="wt-source-row">'
+        f'<div class="wt-source-name">{ico} {sn}{check}</div>'
+        f'<div class="wt-source-val">{dsv}</div>'
         f'</div>'
     )
 if not _src_rows_html:
-    _src_rows_html = '<div style="text-align:center;padding:10px;opacity:0.5;font-size:0.82rem;">No sources available</div>'
+    _src_rows_html = '<div style="text-align:center;padding:14px;opacity:0.4;font-size:0.82rem;">No sources available</div>'
 
 # Build water temp 24h history chart SVG
 def build_wt_chart_svg(pts, is_metric, unit_temp, card_bg, border, sub_text, text):
@@ -778,103 +770,197 @@ wt_chart_svg = build_wt_chart_svg(wt_history, st.session_state.is_metric, unit_t
 # Render as a single self-contained HTML component (no split markdown calls)
 wt_modal_html = f"""
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap');
+
   .wt-card {{
     background:{theme['card_bg']}; border:1px solid {theme['border']}; border-radius:16px;
     padding:18px 14px; box-shadow:0 2px 12px rgba(0,0,0,0.07); text-align:center;
     display:flex; flex-direction:column; justify-content:center; cursor:pointer;
-    transition:border-color 0.2s, box-shadow 0.2s; position:relative;
+    transition:border-color 0.25s, box-shadow 0.25s, transform 0.15s;
+    font-family:'Barlow',sans-serif;
   }}
-  .wt-card:hover {{ border-color:#f39c12; box-shadow:0 4px 18px rgba(243,156,18,0.2); }}
-  .wt-tap-hint {{ font-size:0.6rem; opacity:0.4; margin-top:3px; font-weight:600; letter-spacing:0.5px; text-transform:uppercase; color:{theme['text']}; }}
+  .wt-card:hover {{
+    border-color:#f39c12; box-shadow:0 4px 20px rgba(243,156,18,0.25); transform:translateY(-1px);
+  }}
+  .wt-card:active {{ transform:translateY(0); }}
+  .wt-tap-hint {{
+    font-size:0.58rem; opacity:0.4; margin-top:4px; font-weight:700;
+    letter-spacing:0.8px; text-transform:uppercase; color:{theme['text']};
+  }}
 
+  /* ---- OVERLAY ---- */
   .wt-overlay {{
-    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.65);
+    display:none; position:fixed; inset:0;
+    background:rgba(0,0,0,0.72);
+    backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
     z-index:99999; align-items:center; justify-content:center; padding:16px;
+    animation:fadeIn 0.18s ease;
   }}
+  @keyframes fadeIn {{ from{{opacity:0}} to{{opacity:1}} }}
   .wt-overlay.open {{ display:flex; }}
+
+  /* ---- MODAL ---- */
   .wt-modal {{
-    background:{theme['card_bg']}; border:1px solid {theme['border']}; border-radius:20px;
-    padding:22px; width:100%; max-width:480px; max-height:85vh; overflow-y:auto;
-    box-shadow:0 20px 60px rgba(0,0,0,0.5); position:relative;
+    background:{theme['card_bg']}; border:1px solid {theme['border']}; border-radius:24px;
+    width:100%; max-width:440px; max-height:88vh; overflow-y:auto;
+    box-shadow:0 32px 80px rgba(0,0,0,0.6);
+    animation:slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1);
+    font-family:'Barlow',sans-serif;
   }}
-  .wt-modal-title {{ font-family:'Barlow Condensed',sans-serif; font-size:1.05rem; font-weight:800;
-    text-transform:uppercase; letter-spacing:1px; color:{theme['sub_text']}; margin-bottom:14px;
-    display:flex; justify-content:space-between; align-items:center; }}
-  .wt-close {{ background:none; border:1px solid {theme['border']}; color:{theme['text']};
-    border-radius:50%; width:28px; height:28px; cursor:pointer; font-size:1rem;
-    display:flex; align-items:center; justify-content:center; }}
-  .wt-close:hover {{ background:{theme['border']}; }}
-  .wt-section-label {{ font-family:'Barlow Condensed',sans-serif; font-size:0.72rem;
-    font-weight:700; text-transform:uppercase; letter-spacing:1.2px; color:{theme['sub_text']};
-    margin:14px 0 8px 0; }}
+  @keyframes slideUp {{ from{{transform:translateY(30px);opacity:0}} to{{transform:translateY(0);opacity:1}} }}
+
+  /* ---- MODAL HEADER ---- */
+  .wt-modal-header {{
+    background: linear-gradient(135deg, {theme['card_bg']}, {'#2a2d3e' if st.session_state.dark_mode else '#eef2f7'});
+    border-radius:24px 24px 0 0; padding:20px 20px 16px;
+    border-bottom:1px solid {theme['border']};
+  }}
+  .wt-modal-topbar {{
+    display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;
+  }}
+  .wt-modal-label {{
+    font-family:'Barlow Condensed',sans-serif; font-size:0.72rem; font-weight:700;
+    text-transform:uppercase; letter-spacing:1.5px; color:{theme['sub_text']};
+  }}
+  .wt-close {{
+    background:{'rgba(255,255,255,0.08)' if st.session_state.dark_mode else 'rgba(0,0,0,0.06)'};
+    border:1px solid {theme['border']}; color:{theme['text']};
+    border-radius:50%; width:32px; height:32px; cursor:pointer; font-size:0.9rem;
+    display:flex; align-items:center; justify-content:center; transition:all 0.2s;
+    font-family:sans-serif;
+  }}
+  .wt-close:hover {{
+    background:{'rgba(255,255,255,0.15)' if st.session_state.dark_mode else 'rgba(0,0,0,0.12)'};
+    transform:rotate(90deg);
+  }}
+
+  /* ---- BIG TEMP DISPLAY ---- */
+  .wt-hero {{ text-align:center; }}
+  .wt-hero-temp {{
+    font-family:'Barlow Condensed',sans-serif; font-size:4rem; font-weight:900;
+    color:{temp_color}; line-height:1; letter-spacing:-1px;
+  }}
+  .wt-hero-sub {{
+    font-size:0.82rem; color:{theme['sub_text']}; margin-top:6px;
+    display:flex; justify-content:center; align-items:center; gap:12px; flex-wrap:wrap;
+  }}
+  .wt-badge {{
+    display:inline-flex; align-items:center; gap:4px; padding:3px 10px;
+    border-radius:20px; font-size:0.72rem; font-weight:700;
+    border:1px solid currentColor; opacity:0.85;
+  }}
+
+  /* ---- MODAL BODY ---- */
+  .wt-modal-body {{ padding:18px 20px 22px; }}
+  .wt-section-label {{
+    font-family:'Barlow Condensed',sans-serif; font-size:0.68rem; font-weight:700;
+    text-transform:uppercase; letter-spacing:1.5px; color:{theme['sub_text']};
+    margin:18px 0 10px;
+  }}
+  .wt-section-label:first-child {{ margin-top:0; }}
+
+  /* ---- SOURCE ROWS ---- */
+  .wt-source-row {{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:9px 12px; border-radius:10px; margin-bottom:6px;
+    background:{'rgba(255,255,255,0.03)' if st.session_state.dark_mode else 'rgba(0,0,0,0.03)'};
+    border:1px solid {theme['border']};
+  }}
+  .wt-source-name {{
+    font-size:0.82rem; font-weight:600; color:{theme['sub_text']}; display:flex; align-items:center; gap:6px;
+  }}
+  .wt-source-val {{
+    font-family:'Barlow Condensed',sans-serif; font-size:1.05rem; font-weight:800; color:{theme['text']};
+  }}
+  .wt-check {{
+    background:rgba(46,204,113,0.15); color:#2ecc71; border:1px solid rgba(46,204,113,0.3);
+    border-radius:12px; font-size:0.62rem; font-weight:800; padding:1px 6px; margin-left:4px;
+    letter-spacing:0.3px;
+  }}
+
+  /* ---- CHART ---- */
+  .wt-chart-wrap {{
+    background:{'rgba(0,0,0,0.2)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'};
+    border:1px solid {theme['border']}; border-radius:12px; padding:14px 12px 8px;
+  }}
+
+  /* ---- FOOTER ---- */
+  .wt-footer {{
+    text-align:center; font-size:0.62rem; opacity:0.3; margin-top:16px;
+    font-weight:500; line-height:1.5;
+  }}
 </style>
 
-<!-- Water Temp Card (clickable) -->
-<div class="metrics-grid" style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:12px;">
-  <div class="metric-card" style="background:{theme['card_bg']};border:1px solid {theme['border']};border-radius:16px;padding:18px 14px;box-shadow:0 2px 12px rgba(0,0,0,0.07);text-align:center;display:flex;flex-direction:column;justify-content:center;">
+<!-- 3-col metrics grid including clickable water temp card -->
+<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:12px;">
+
+  <div style="background:{theme['card_bg']};border:1px solid {theme['border']};border-radius:16px;padding:18px 14px;box-shadow:0 2px 12px rgba(0,0,0,0.07);text-align:center;display:flex;flex-direction:column;justify-content:center;font-family:'Barlow',sans-serif;">
     <div style="color:{theme['sub_text']};font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px;font-family:'Barlow Condensed',sans-serif;">Lake Level</div>
     <div style="color:{theme['text']};font-size:2rem;font-weight:900;line-height:1.1;font-family:'Barlow Condensed',sans-serif;">{level_val}</div>
     <div style="font-size:0.75rem;font-weight:500;margin-top:4px;color:{theme['sub_text']};line-height:1.4;">
       {level_sub_html}<br>
-      <span style="font-size:0.62rem;opacity:0.45;display:inline-block;margin-top:4px;">Updated: {d['last_updated']}</span>
+      <span style="font-size:0.62rem;opacity:0.4;display:inline-block;margin-top:4px;">Updated: {d['last_updated']}</span>
     </div>
   </div>
-  <div class="metric-card" style="background:{theme['card_bg']};border:1px solid {theme['border']};border-radius:16px;padding:18px 14px;box-shadow:0 2px 12px rgba(0,0,0,0.07);text-align:center;display:flex;flex-direction:column;justify-content:center;">
+
+  <div style="background:{theme['card_bg']};border:1px solid {theme['border']};border-radius:16px;padding:18px 14px;box-shadow:0 2px 12px rgba(0,0,0,0.07);text-align:center;display:flex;flex-direction:column;justify-content:center;font-family:'Barlow',sans-serif;">
     <div style="color:{theme['sub_text']};font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px;font-family:'Barlow Condensed',sans-serif;">Air Temp</div>
     <div style="color:{air_temp_color};font-size:2rem;font-weight:900;line-height:1.1;font-family:'Barlow Condensed',sans-serif;">{disp_air_temp}{unit_temp}</div>
     <div style="font-size:0.75rem;font-weight:500;margin-top:4px;color:{theme['sub_text']};line-height:1.4;">
       Flowery Branch<br>
-      <span style="font-size:0.62rem;opacity:0.45;display:inline-block;margin-top:4px;">Updated: {d['last_updated']}</span>
+      <span style="font-size:0.62rem;opacity:0.4;display:inline-block;margin-top:4px;">Updated: {d['last_updated']}</span>
     </div>
   </div>
+
   <div class="wt-card" onclick="document.getElementById('wtOverlay').classList.add('open')">
     <div style="color:{theme['sub_text']};font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px;font-family:'Barlow Condensed',sans-serif;">Water Temp</div>
     <div style="color:{temp_color};font-size:2rem;font-weight:900;line-height:1.1;font-family:'Barlow Condensed',sans-serif;">{water_temp_display}</div>
     <div style="font-size:0.75rem;font-weight:500;margin-top:4px;color:{theme['sub_text']};line-height:1.4;">
-      median &nbsp;
-      <span style="color:#74b9ff;">↓{disp_water_low}{unit_temp}</span>–<span style="color:#e74c3c;">↑{disp_water_high}{unit_temp}</span>
-      <br><span style="font-size:0.62rem;opacity:0.45;display:inline-block;margin-top:2px;">{len(wt_data['sources'])} sources · {wt_data['confidence']} confidence</span>
+      <span style="color:#74b9ff;">↓{disp_water_low}{unit_temp}</span> · <span style="color:#e74c3c;">↑{disp_water_high}{unit_temp}</span>
+      <br><span style="font-size:0.6rem;opacity:0.4;display:inline-block;margin-top:2px;">{wt_data['confidence']} · {len(wt_data['sources'])} sources</span>
     </div>
-    <div class="wt-tap-hint">Tap for details & history</div>
+    <div class="wt-tap-hint">▼ tap for details</div>
   </div>
+
 </div>
 
-<!-- Modal Overlay -->
+<!-- Modal -->
 <div id="wtOverlay" class="wt-overlay" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="wt-modal">
-    <div class="wt-modal-title">
-      🌡️ Water Temp — Detail
-      <button class="wt-close" onclick="document.getElementById('wtOverlay').classList.remove('open')">✕</button>
+
+    <!-- Header -->
+    <div class="wt-modal-header">
+      <div class="wt-modal-topbar">
+        <div class="wt-modal-label">🌡️ Water Temperature</div>
+        <button class="wt-close" onclick="document.getElementById('wtOverlay').classList.remove('open')">✕</button>
+      </div>
+      <div class="wt-hero">
+        <div class="wt-hero-temp">{water_temp_display}</div>
+        <div class="wt-hero-sub">
+          <span>median of {len(wt_data['sources'])} sources</span>
+          <span class="wt-badge" style="color:{conf_color};">● {wt_data['confidence']}</span>
+          <span class="wt-badge" style="color:#74b9ff;">↓ {disp_water_low}{unit_temp}</span>
+          <span class="wt-badge" style="color:#e74c3c;">↑ {disp_water_high}{unit_temp}</span>
+        </div>
+      </div>
     </div>
 
-    <!-- Big median display -->
-    <div style="text-align:center;margin-bottom:16px;">
-      <div style="font-size:3rem;font-weight:900;color:{temp_color};font-family:'Barlow Condensed',sans-serif;line-height:1;">{water_temp_display}</div>
-      <div style="font-size:0.85rem;color:{theme['sub_text']};margin-top:4px;">
-        median &nbsp;|&nbsp;
-        <span style="color:#74b9ff;">Low: {disp_water_low}{unit_temp}</span> &nbsp;
-        <span style="color:#e74c3c;">High: {disp_water_high}{unit_temp}</span>
-      </div>
-      <div style="margin-top:6px;">
-        <span style="font-size:0.78rem;font-weight:700;color:{conf_color};">● {wt_data['confidence']} confidence</span>
-        <span style="font-size:0.68rem;opacity:0.5;margin-left:8px;">{len(wt_data['sources'])} of 4 sources online</span>
-      </div>
-    </div>
+    <!-- Body -->
+    <div class="wt-modal-body">
 
-    <!-- Source breakdown -->
-    <div class="wt-section-label">Source Comparison</div>
-    <div style="border-top:1px solid {theme['border']};">
+      <div class="wt-section-label">Source Readings</div>
       {_src_rows_html}
-    </div>
 
-    <!-- 24h history chart -->
-    <div class="wt-section-label">24-Hour History (USGS Buford Dam)</div>
-    <div style="background:{theme['bg']};border:1px solid {theme['border']};border-radius:10px;padding:12px 10px 6px 10px;">
-      {wt_chart_svg}
-    </div>
+      <div class="wt-section-label">24-Hour History</div>
+      <div class="wt-chart-wrap">
+        {wt_chart_svg}
+      </div>
 
-    <div style="font-size:0.65rem;opacity:0.35;text-align:center;margin-top:12px;">
-      Data refreshes every 5 minutes · USGS gauges 02334430 & 02334480, Omnia Fishing, Lake Monster
+      <div class="wt-footer">
+        Refreshes every 5 min · USGS 02334430 & 02334480 · Omnia Fishing · Lake Monster<br>
+        ⚠ Surface temp varies by depth, cove, and time of day
+      </div>
+
     </div>
   </div>
 </div>
