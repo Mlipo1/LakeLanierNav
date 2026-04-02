@@ -880,6 +880,28 @@ wt_modal_html = f"""
   }}
 </style>
 
+<script>
+// Auto-resize iframe height to fit content — prevents water temp card being cut off on mobile
+function resizeToContent() {{
+  var h = document.documentElement.scrollHeight;
+  // Post message to Streamlit parent to resize the iframe
+  window.parent.postMessage({{type: 'streamlit:setComponentValue', value: h}}, '*');
+  // Also directly set iframe height via parent DOM access
+  try {{
+    var frames = window.parent.document.querySelectorAll('iframe');
+    frames.forEach(function(f) {{
+      if (f.contentWindow === window) {{
+        f.style.height = (h + 4) + 'px';
+      }}
+    }});
+  }} catch(e) {{}}
+}}
+window.addEventListener('load', resizeToContent);
+window.addEventListener('resize', resizeToContent);
+setTimeout(resizeToContent, 100);
+setTimeout(resizeToContent, 500);
+</script>
+
 <div class="cards-grid">
   <div class="card">
     <div class="card-label">Lake Level</div>
@@ -924,7 +946,7 @@ wt_modal_html = f"""
   </div>
 </div>
 """
-st.components.v1.html(wt_modal_html, height=170, scrolling=False)
+st.components.v1.html(wt_modal_html, height=200, scrolling=False)
 
 
 # --- Info Pills ---
@@ -1014,73 +1036,123 @@ if chart_points and len(chart_points) >= 3:
     labels = [pt[0] for pt in chart_points]
     min_l = min(levels)
     max_l = max(levels)
-    padding = max(0.05, (max_l - min_l) * 0.3)
+    current_l = levels[-1]
+    yesterday_l = levels[0]
+    delta_24h = round(current_l - yesterday_l, 2)
+    pool_diff = round(current_l - FULL_POOL_FT, 2)
+
+    padding = max(0.05, (max_l - min_l) * 0.35)
     y_min = min_l - padding
     y_max = max_l + padding
     n = len(chart_points)
 
     chart_w = 560
-    chart_h = 120
-    pad_left = 58
-    pad_right = 14
-    pad_top = 12
-    pad_bottom = 28
+    chart_h = 150  # taller for readability
+    pad_left = 62
+    pad_right = 16
+    pad_top = 14
+    pad_bottom = 30
     plot_w = chart_w - pad_left - pad_right
     plot_h = chart_h - pad_top - pad_bottom
 
     def cx(i): return pad_left + (i / (n - 1)) * plot_w
     def cy(v): return pad_top + plot_h - ((v - y_min) / (y_max - y_min)) * plot_h
 
-    # Smooth polyline points
     pts = " ".join([f"{cx(i):.1f},{cy(v):.1f}" for i, v in enumerate(levels)])
     area_pts = f"{cx(0):.1f},{pad_top + plot_h} " + pts + f" {cx(n-1):.1f},{pad_top + plot_h}"
 
-    # Y-axis gridlines (3 lines)
-    y_ticks = [y_min + (y_max - y_min) * k / 2 for k in range(3)]
+    # Full pool reference line
+    if y_min <= FULL_POOL_FT <= y_max:
+        fp_y = cy(FULL_POOL_FT)
+        full_pool_line = (
+            f'<line x1="{pad_left}" y1="{fp_y:.1f}" x2="{chart_w - pad_right}" y2="{fp_y:.1f}" '
+            f'stroke="#f39c12" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.7"/>'
+            f'<text x="{chart_w - pad_right + 2}" y="{fp_y + 4:.1f}" font-size="8" fill="#f39c12" '
+            f'font-family="Barlow Condensed,sans-serif" font-weight="700" opacity="0.85">FULL</text>'
+        )
+    else:
+        full_pool_line = ""
+
+    # Y gridlines — 4 ticks for more precision
+    y_ticks = [y_min + (y_max - y_min) * k / 3 for k in range(4)]
     grid_lines = ""
     y_labels = ""
     for yv in y_ticks:
         yp = cy(yv)
-        grid_lines += f'<line x1="{pad_left}" y1="{yp:.1f}" x2="{chart_w - pad_right}" y2="{yp:.1f}" stroke="{theme["border"]}" stroke-width="1" stroke-dasharray="4,3"/>'
-        y_labels += f'<text x="{pad_left - 5}" y="{yp + 4:.1f}" text-anchor="end" font-size="9" fill="{theme["sub_text"]}" font-family="Barlow Condensed,sans-serif" font-weight="600">{yv:.2f}</text>'
+        grid_lines += (
+            f'<line x1="{pad_left}" y1="{yp:.1f}" x2="{chart_w - pad_right}" y2="{yp:.1f}" '
+            f'stroke="{theme["border"]}" stroke-width="1" stroke-dasharray="4,3"/>'
+        )
+        y_labels += (
+            f'<text x="{pad_left - 6}" y="{yp + 4:.1f}" text-anchor="end" font-size="10" '
+            f'fill="{theme["sub_text"]}" font-family="Barlow Condensed,sans-serif" font-weight="700">{yv:.2f}</text>'
+        )
 
-    # X-axis labels (show ~5 evenly spaced)
+    # X labels — 5 evenly spaced
     x_label_indices = [0, n // 4, n // 2, 3 * n // 4, n - 1]
     x_labels = ""
     for idx in x_label_indices:
         if 0 <= idx < n:
-            xp = cx(idx)
-            x_labels += f'<text x="{xp:.1f}" y="{chart_h - 4}" text-anchor="middle" font-size="9" fill="{theme["sub_text"]}" font-family="Barlow Condensed,sans-serif" font-weight="600">{labels[idx]}</text>'
+            x_labels += (
+                f'<text x="{cx(idx):.1f}" y="{chart_h - 6}" text-anchor="middle" font-size="10" '
+                f'fill="{theme["sub_text"]}" font-family="Barlow Condensed,sans-serif" font-weight="700">{labels[idx]}</text>'
+            )
 
-    # Trend color for last dot
-    dot_color = "#2ecc71" if trend_24h >= 0 else "#e74c3c"
+    dot_color = "#2ecc71" if delta_24h >= 0 else "#e74c3c"
     last_cx = cx(n - 1)
     last_cy = cy(levels[-1])
 
     chart_svg = f"""
-    <svg class="chart-svg" viewBox="0 0 {chart_w} {chart_h}" xmlns="http://www.w3.org/2000/svg">
+    <svg viewBox="0 0 {chart_w} {chart_h}" xmlns="http://www.w3.org/2000/svg" style="width:100%;overflow:visible;">
         <defs>
             <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#3498db" stop-opacity="0.35"/>
-                <stop offset="100%" stop-color="#3498db" stop-opacity="0.03"/>
+                <stop offset="0%" stop-color="#3498db" stop-opacity="0.4"/>
+                <stop offset="100%" stop-color="#3498db" stop-opacity="0.02"/>
             </linearGradient>
         </defs>
         {grid_lines}
         {y_labels}
         {x_labels}
-        <polyline points="{area_pts}" class="chart-area"/>
-        <polyline points="{pts}" class="chart-line"/>
-        <circle cx="{last_cx:.1f}" cy="{last_cy:.1f}" r="4.5" fill="{dot_color}" stroke="{theme['card_bg']}" stroke-width="2"/>
+        {full_pool_line}
+        <polyline points="{area_pts}" fill="url(#chartGrad)"/>
+        <polyline points="{pts}" fill="none" stroke="#3498db" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+        <circle cx="{last_cx:.1f}" cy="{last_cy:.1f}" r="5" fill="{dot_color}" stroke="{theme['card_bg']}" stroke-width="2.5"/>
     </svg>
     """
 
-    trend_dir = "▲" if trend_24h >= 0 else "▼"
-    trend_col = "#2ecc71" if trend_24h >= 0 else "#e74c3c"
+    # Build stat pills for the header bar
+    delta_arrow = "▲" if delta_24h >= 0 else "▼"
+    delta_col = "#2ecc71" if delta_24h >= 0 else "#e74c3c"
+    pool_arrow = "▲" if pool_diff >= 0 else "▼"
+    pool_col = "#3498db" if pool_diff >= 0 else "#e74c3c"
+
+    if st.session_state.is_metric:
+        cur_disp  = f"{round(current_l * 0.3048, 2)}m"
+        d24_disp  = f"{abs(round(delta_24h * 0.3048, 2))}m"
+        pool_disp = f"{abs(round(pool_diff * 0.3048, 2))}m"
+    else:
+        cur_disp  = f"{round(current_l, 2)}'"
+        d24_disp  = f"{abs(delta_24h)}'"
+        pool_disp = f"{abs(pool_diff)}'"
+
+    sub = theme['sub_text']
+    txt = theme['text']
+    stat_pill = (
+        f'<span style="font-size:0.75rem;font-weight:700;font-family:Barlow Condensed,sans-serif;">'
+        f'<span style="color:{sub};margin-right:14px;">📏 Current: <b style="color:{txt}">{cur_disp}</b></span>'
+        f'<span style="color:{sub};margin-right:14px;">24h: <b style="color:{delta_col}">{delta_arrow} {d24_disp}</b></span>'
+        f'<span style="color:{sub};">vs Full Pool: <b style="color:{pool_col}">{pool_arrow} {pool_disp}</b></span>'
+        f'</span>'
+    )
+
     st.markdown(f"""
     <div class="chart-wrapper">
-        <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center;">
-            <span>ELEVATION (ft AMSL) — 24h window</span>
-            <span style="color:{trend_col}; font-size:0.82rem;">{trend_dir} {abs(trend_24h)} ft over 24h</span>
+        <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
+            <span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;">ELEVATION (ft AMSL) — 24h window</span>
+            <span style="color:{delta_col}; font-size:0.85rem; font-weight:800;">{delta_arrow} {abs(delta_24h)} ft over 24h</span>
+        </div>
+        <div style="margin-bottom:10px; padding:8px 10px; background:{'rgba(255,255,255,0.04)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'}; border-radius:8px; border:1px solid {theme['border']};">
+            {stat_pill}
         </div>
         {chart_svg}
     </div>
