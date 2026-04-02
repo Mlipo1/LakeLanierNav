@@ -53,7 +53,6 @@ def fetch_data():
             import time
             time.sleep(1)
 
-    # Water temp is now fetched separately via fetch_water_temps()
     data["water_temp"] = "N/A"
 
     # Weather Data
@@ -104,24 +103,18 @@ def fetch_water_temps():
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
     }
-    
     try:
         url = "https://lakemonster.com/lake/Georgia/Lake-Lanier-234"
         res = requests.get(url, headers=headers, timeout=8)
-        
-        # Look for "Water Temp" nearby a degree value
         match = re.search(r'(?i)(?:water\s*temp|temperature).*?(\d{2,3})\s*°?\s*F', res.text, re.DOTALL)
         if not match:
-            # Fallback regex
             match = re.search(r'>(\d{2,3})\s*°?\s*F?<', res.text)
-            
         if match:
             val = int(match.group(1))
             if 35 <= val <= 90:
                 return float(val)
     except Exception:
         pass
-
     return "N/A"
 
 @st.cache_data(ttl=300)
@@ -141,17 +134,15 @@ def fetch_level_trend():
         chart_points = []
         for v in values:
             try:
-                dt_str = v['dateTime'][:16]  # "2024-04-01T14:30"
+                dt_str = v['dateTime'][:16]
                 dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M") - _eastern_offset()
                 level = float(v['value'])
                 chart_points.append((dt.strftime("%H:%M"), level))
             except Exception:
                 continue
 
-        # Thin to ~24 points max for rendering
         step = max(1, len(chart_points) // 24)
         chart_points = chart_points[::step]
-
         first = float(values[0]['value'])
         last = float(values[-1]['value'])
         trend = round(last - first, 2)
@@ -159,11 +150,9 @@ def fetch_level_trend():
     except Exception:
         return 0, []
 
-
 def get_compass_dir(degrees):
     dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
     return dirs[int(round(degrees / (360. / len(dirs)))) % len(dirs)]
-
 
 def calculate_chop(wind, gusts):
     avg_force = (wind + gusts) / 2
@@ -176,40 +165,30 @@ def calculate_chop(wind, gusts):
     else:
         return "Rough / Whitecaps", "#fca5a5"
 
-
 FULL_POOL_FT = 1071.0
-
 
 def calculate_boat_score(d, wave):
     score = 100
     reasons = []
-    weights = {}
-
-    # 1. Wind & Gusts (max penalty ~45 pts at 25mph sustained)
+    
     wind_penalty = min(d["wind_mph"] * 1.2, 30)
     gust_bonus_penalty = min(max(d["gusts"] - d["wind_mph"], 0) * 0.8, 15)
     score -= (wind_penalty + gust_bonus_penalty)
-    weights["wind"] = wind_penalty + gust_bonus_penalty
     if d["wind_mph"] > 10:
         reasons.append(f"Wind {d['wind_mph']}mph")
     if d["gusts"] > 18:
         reasons.append(f"Gusts {d['gusts']}mph")
 
-    # 2. Rain (max -30)
     rain_penalty = min(d["rain_chance"] * 0.45, 30)
     score -= rain_penalty
-    weights["rain"] = rain_penalty
     if d["rain_chance"] > 35:
         reasons.append(f"{d['rain_chance']}% Rain chance")
 
-    # 3. Wave Height (max -25)
     wave_penalty = min(wave * 8, 25)
     score -= wave_penalty
-    weights["waves"] = wave_penalty
     if wave > 1.5:
         reasons.append("High surface chop")
 
-    # 4. Water Temperature — cold water shock risk
     wt = d["water_temp"]
     if wt != "N/A":
         wt = float(wt)
@@ -226,7 +205,6 @@ def calculate_boat_score(d, wave):
             score -= 4
             reasons.append("Cool (60-70°F): May be uncomfortable")
 
-    # 5. Air temperature comfort
     if d["air_temp"] != "N/A":
         at = float(d["air_temp"])
         if at < 32:
@@ -239,13 +217,11 @@ def calculate_boat_score(d, wave):
             score -= 5
             reasons.append("Extreme heat (>95°F)")
 
-    # 6. Visibility
     if d["visibility"] != "N/A" and float(d["visibility"]) < 4:
         penalty = min((4 - float(d["visibility"])) * 4, 15)
         score -= penalty
         reasons.append("Low visibility/Fog")
 
-    # 7. Lake Level — shallow hazards & debris
     if d['level'] != "N/A":
         pool_diff = d['level'] - FULL_POOL_FT
         if pool_diff < -5:
@@ -265,7 +241,6 @@ def calculate_boat_score(d, wave):
             score -= penalty
             reasons.append("Above full pool: Debris risk")
 
-    # 8. UV — sunburn risk flagging (informational, -5 max)
     if d["uv"] > 8:
         score -= 3
         reasons.append(f"High UV ({d['uv']}): Sun protection needed")
@@ -273,10 +248,8 @@ def calculate_boat_score(d, wave):
     final_score = max(0, min(100, round(score)))
     return final_score, reasons
 
-
 def get_safety_alert(d, wave):
     alerts = []
-
     if d["wind_mph"] >= 20 or d["gusts"] >= 30:
         alerts.append("🌬️ <strong>High Wind Advisory:</strong> Dangerous gusts detected. Small craft caution.")
     if d["rain_chance"] >= 70:
@@ -302,7 +275,6 @@ def get_safety_alert(d, wave):
         curr_mins = now_est.time().hour * 60 + now_est.time().minute
         ss_time = datetime.strptime(d["sunset"], "%I:%M %p").time()
         ss_mins = ss_time.hour * 60 + ss_time.minute
-
         if curr_mins >= ss_mins:
             alerts.append("🌙 <strong>Night Operations:</strong> Sun has set. Navigational lights are required by law.")
         elif (ss_mins - curr_mins) <= 45:
@@ -321,19 +293,16 @@ def get_safety_alert(d, wave):
 
     return alerts
 
-
 # --- INITIALIZE DATA ---
 d = fetch_data()
 wt_val = fetch_water_temps()
 
-# Inject water temp back into d so safety alerts / boating score still work
 if wt_val != "N/A":
     d["water_temp"] = wt_val
 
 trend_24h, chart_points = fetch_level_trend()
 wave_height = round(0.016 * (d["wind_mph"] ** 1.5), 1)
 alerts = get_safety_alert(d, wave_height)
-
 now_est = datetime.utcnow() - _eastern_offset()
 
 # Metric Conversions
@@ -387,7 +356,21 @@ st.markdown(f"""
     .stApp {{ background-color: {theme['bg']} !important; font-family: 'Barlow', sans-serif !important; }}
     h3, div[data-testid="stWidgetLabel"] p, p {{ color: {theme['text']} !important; font-weight: 600; font-family: 'Barlow', sans-serif !important; }}
 
-    .main-title {{ color: {theme['text']} !important; font-family: 'Barlow Condensed', sans-serif !important; font-weight: 900; font-size: clamp(1.8rem, 7vw, 3rem); white-space: nowrap; margin-bottom: 0px; margin-top: 10px; letter-spacing: -0.5px; text-align: center; }}
+    /* Remove empty space up top */
+    .block-container {{ padding-top: 1.5rem !important; padding-bottom: 1.5rem !important; }}
+
+    /* Larger Title & Reduced Top Margin */
+    .main-title {{ 
+        color: {theme['text']} !important; 
+        font-family: 'Barlow Condensed', sans-serif !important; 
+        font-weight: 900; 
+        font-size: clamp(2.4rem, 10vw, 4.2rem); 
+        white-space: nowrap; 
+        margin-bottom: 0px; 
+        margin-top: -10px; 
+        letter-spacing: -0.5px; 
+        text-align: center; 
+    }}
     .section-header {{ font-family: 'Barlow Condensed', sans-serif !important; font-weight: 800; font-size: 1.3rem; color: {theme['text']} !important; margin: 20px 0 10px 0; letter-spacing: 0.5px; text-transform: uppercase; }}
 
     div[data-testid="stToggle"] {{ background-color: {theme['card_bg']}; padding: 6px 12px; border-radius: 20px; border: 1px solid {theme['border']}; margin-bottom: 5px; }}
@@ -407,9 +390,31 @@ st.markdown(f"""
     .metric-sub {{ font-size: 0.75rem; font-weight: 500; margin-top: 4px; color: {theme['sub_text']}; line-height: 1.4; }}
     .text-red {{ color: #e74c3c; }}
 
-    /* ---- PILLS ---- */
-    .pill-container {{ display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 20px; margin-top: 4px; }}
-    .info-pill {{ background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 28px; color: {theme['text']}; font-size: 0.8rem; font-weight: 600; text-align: center; flex: 1 1 calc(33% - 8px); min-width: 120px; min-height: 50px; height: auto; display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden; padding: 6px 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); transition: all 0.3s; }}
+    /* ---- UNIFORM GRID PILLS ---- */
+    .pill-container {{ 
+        display: grid; 
+        grid-template-columns: repeat(3, 1fr); 
+        gap: 12px; 
+        margin-bottom: 24px; 
+        margin-top: 8px; 
+    }}
+    .info-pill {{ 
+        background: {theme['card_bg']}; 
+        border: 1px solid {theme['border']}; 
+        border-radius: 20px; 
+        color: {theme['text']}; 
+        font-size: 0.85rem; 
+        font-weight: 600; 
+        text-align: center; 
+        display: flex; 
+        flex-direction: column; 
+        align-items: center; 
+        justify-content: center; 
+        padding: 8px; 
+        box-shadow: 0 2px 8px rgba(0,0,0,0.04); 
+        height: 100%; 
+        min-height: 64px; 
+    }}
     .reason-pill {{ display: inline-block; background: rgba(0,0,0,0.1); padding: 4px 10px; border-radius: 14px; font-size: 0.75rem; margin: 2px; font-weight: 700; border: 1px solid rgba(128,128,128,0.25); color: {theme['text']}; font-family: 'Barlow Condensed', sans-serif; letter-spacing: 0.3px; }}
 
     /* ---- WIND CARD ---- */
@@ -438,11 +443,7 @@ st.markdown(f"""
     /* ---- CHART ---- */
     .chart-wrapper {{ background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 16px; padding: 18px 18px 10px 18px; margin-bottom: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }}
     .chart-title {{ font-family: 'Barlow Condensed', sans-serif; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: {theme['sub_text']}; margin-bottom: 12px; }}
-    .chart-svg {{ width: 100%; overflow: visible; }}
-    .chart-line {{ fill: none; stroke: #3498db; stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }}
-    .chart-area {{ fill: url(#chartGrad); }}
-    .chart-dot {{ fill: #3498db; }}
-
+    
     /* ---- BOATING SCORE ---- */
     .score-card {{ background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 16px; padding: 18px; margin-bottom: 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.06); }}
     .score-bar-bg {{ background: {theme['border']}; border-radius: 10px; height: 10px; width: 100%; margin: 12px 0 10px 0; overflow: hidden; }}
@@ -450,14 +451,14 @@ st.markdown(f"""
 
     /* ---- MOBILE ---- */
     @media (max-width: 640px) {{
-        .main-title {{ text-align: center; margin-bottom: 8px; font-size: clamp(1.2rem, 7vw, 1.6rem) !important; white-space: nowrap !important; }}
+        .main-title {{ font-size: clamp(2.2rem, 10vw, 2.8rem) !important; margin-bottom: 6px; }}
         .metrics-grid {{ grid-template-columns: 1fr 1fr; gap: 8px; }}
         .metrics-grid .metric-card:nth-child(3) {{ grid-column: span 2; }}
-        .metric-value {{ font-size: 1.65rem !important; }}
-        .metric-card {{ padding: 14px 12px !important; border-radius: 13px !important; }}
-        .metric-sub {{ font-size: 0.72rem !important; }}
-        .info-pill {{ font-size: 0.75rem; min-width: 100px; min-height: 48px; padding: 5px 8px; }}
-        .pill-container {{ gap: 6px; }}
+        
+        /* Pills snap to 2 columns on mobile to fit text perfectly */
+        .pill-container {{ grid-template-columns: repeat(2, 1fr); gap: 8px; }}
+        .info-pill {{ font-size: 0.8rem; min-height: 56px; padding: 6px; }}
+        
         div[data-testid="stToggle"] {{ width: 100%; display: flex; justify-content: center; }}
         .wind-merged {{ flex-direction: column; text-align: center; }}
         .wind-stats-box {{ width: 100%; padding: 12px; min-width: unset; }}
@@ -466,18 +467,10 @@ st.markdown(f"""
         .section-header {{ font-size: 1.1rem; }}
         .score-card {{ padding: 14px; }}
     }}
-
-    @media (max-width: 380px) {{
-        .main-title {{ font-size: clamp(1.1rem, 7vw, 1.4rem) !important; }}
-        .metric-value {{ font-size: 1.4rem !important; }}
-        .info-pill {{ min-width: 90px; font-size: 0.7rem; }}
-    }}
     </style>
 """, unsafe_allow_html=True)
 
 # --- Header ---
-# now_est already set DST-aware above
-
 st.markdown(f'''
     <h1 class="main-title">⚓ Lanier Navigator</h1>
     <div id="live-clock-text" style="color:{theme['sub_text']}; font-size:0.9rem; font-weight:600; margin-top:2px; margin-bottom:10px; font-family:'Barlow',sans-serif; text-align:center;"></div>
@@ -526,7 +519,6 @@ else:
 
 level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
 
-# Water temp color (always based on °F median for thresholds)
 if wt_val != "N/A":
     wt_f = float(wt_val)
     temp_color = "#74b9ff" if wt_f < 50 else "#3498db" if wt_f < 60 else "#f39c12" if wt_f < 80 else "#e74c3c"
@@ -544,32 +536,12 @@ if d['air_temp'] != "N/A":
 
 st.markdown(f"""
 <style>
-  .cards-grid {{
-    display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 12px; margin-bottom: 24px;
-  }}
-  .card {{
-    background: {theme['card_bg']}; border: 1px solid {theme['border']};
-    border-radius: 16px; padding: 18px 14px;
-    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
-    text-align: center; display: flex; flex-direction: column;
-    justify-content: center;
-  }}
-  .card-label {{
-    color: {theme['sub_text']}; font-family: 'Barlow Condensed', sans-serif;
-    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
-    letter-spacing: 1.2px; margin-bottom: 6px;
-  }}
-  .card-value {{
-    font-family: 'Barlow Condensed', sans-serif; font-size: 2rem;
-    font-weight: 900; line-height: 1.1; color: {theme['text']};
-  }}
-  .card-sub {{
-    font-size: 0.72rem; font-weight: 500; margin-top: 5px;
-    color: {theme['sub_text']}; line-height: 1.45;
-  }}
+  .cards-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }}
+  .card {{ background: {theme['card_bg']}; border: 1px solid {theme['border']}; border-radius: 16px; padding: 18px 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); text-align: center; display: flex; flex-direction: column; justify-content: center; }}
+  .card-label {{ color: {theme['sub_text']}; font-family: 'Barlow Condensed', sans-serif; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 6px; }}
+  .card-value {{ font-family: 'Barlow Condensed', sans-serif; font-size: 2rem; font-weight: 900; line-height: 1.1; color: {theme['text']}; }}
+  .card-sub {{ font-size: 0.72rem; font-weight: 500; margin-top: 5px; color: {theme['sub_text']}; line-height: 1.45; }}
   .card-tiny {{ font-size: 0.6rem; opacity: 0.4; display: inline-block; margin-top: 3px; }}
-
   @media (max-width: 520px) {{
     .cards-grid {{ grid-template-columns: 1fr 1fr; gap: 8px; }}
     .cards-grid .card:nth-child(3) {{ grid-column: span 2; }}
@@ -593,10 +565,7 @@ st.markdown(f"""
   <div class="card">
     <div class="card-label">Water Temp</div>
     <div class="card-value" style="color:{temp_color};">{water_temp_display}</div>
-    <div class="card-sub">
-      Lake Monster
-      <br><span class="card-tiny">Updated: {d['last_updated']}</span>
-    </div>
+    <div class="card-sub">Lake Monster<br><span class="card-tiny">Updated: {d['last_updated']}</span></div>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -614,17 +583,17 @@ try:
     if curr_mins < sr_mins:
         sun_prog = 0
         rem = sr_mins - curr_mins
-        sun_lbl = f"{base_sun_str}<br><span style='font-size:0.68rem; opacity:0.8;'>Rises in {rem // 60}h {rem % 60}m</span>"
+        sun_lbl = f"{base_sun_str}<br><span style='font-size:0.7rem; opacity:0.8; display:inline-block; margin-top:2px;'>Rises in {rem // 60}h {rem % 60}m</span>"
         sun_bg = f"background: linear-gradient(90deg, rgba(253,203,110,0.4) 0%, {theme['card_bg']} 0%);"
     elif curr_mins >= ss_mins:
         sun_prog = 100
-        sun_lbl = f"{base_sun_str}<br><span style='font-size:0.68rem; opacity:0.8; color:#74b9ff;'>🌙 Night Operations</span>"
+        sun_lbl = f"{base_sun_str}<br><span style='font-size:0.7rem; opacity:0.8; color:#74b9ff; display:inline-block; margin-top:2px;'>🌙 Night Operations</span>"
         sun_bg = f"background: linear-gradient(90deg, rgba(41,128,185,0.2) 100%, {theme['card_bg']} 100%);"
     else:
         elapsed = curr_mins - sr_mins
         sun_prog = int((elapsed / total_daylight) * 100)
         rem = ss_mins - curr_mins
-        sun_lbl = f"{base_sun_str}<br><span style='font-size:0.68rem; opacity:0.8;'>{rem // 60}h {rem % 60}m till Sunset</span>"
+        sun_lbl = f"{base_sun_str}<br><span style='font-size:0.7rem; opacity:0.8; display:inline-block; margin-top:2px;'>{rem // 60}h {rem % 60}m till Sunset</span>"
         sun_bg = f"background: linear-gradient(90deg, rgba(253,203,110,0.4) {sun_prog}%, {theme['card_bg']} {sun_prog}%);"
 except Exception:
     sun_lbl = f"🌅 {d['sunrise']} | 🌇 {d['sunset']}"
@@ -665,9 +634,9 @@ try {{
             if(sunEl&&srMins>0) {{
                 const currMins=now.getHours()*60+now.getMinutes(); let lbl='',bg='';
                 const baseStr='🌅 '+sr+' | 🌇 '+ss;
-                if(currMins<srMins) {{ let rem=srMins-currMins; lbl=baseStr+"<br><span style='font-size:0.68rem;opacity:0.8;'>Rises in "+Math.floor(rem/60)+"h "+(rem%60)+"m</span>"; bg="linear-gradient(90deg,rgba(253,203,110,0.4) 0%,{theme['card_bg']} 0%)"; }}
-                else if(currMins>=ssMins) {{ lbl=baseStr+"<br><span style='font-size:0.68rem;opacity:0.8;color:#74b9ff;'>🌙 Night Operations</span>"; bg="linear-gradient(90deg,rgba(41,128,185,0.2) 100%,{theme['card_bg']} 100%)"; }}
-                else {{ let prog=Math.floor(((currMins-srMins)/totalDaylight)*100), rem=ssMins-currMins; lbl=baseStr+"<br><span style='font-size:0.68rem;opacity:0.8;'>"+Math.floor(rem/60)+"h "+(rem%60)+"m till Sunset</span>"; bg="linear-gradient(90deg,rgba(253,203,110,0.4) "+prog+"%,{theme['card_bg']} "+prog+"%)"; }}
+                if(currMins<srMins) {{ let rem=srMins-currMins; lbl=baseStr+"<br><span style='font-size:0.7rem;opacity:0.8;display:inline-block;margin-top:2px;'>Rises in "+Math.floor(rem/60)+"h "+(rem%60)+"m</span>"; bg="linear-gradient(90deg,rgba(253,203,110,0.4) 0%,{theme['card_bg']} 0%)"; }}
+                else if(currMins>=ssMins) {{ lbl=baseStr+"<br><span style='font-size:0.7rem;opacity:0.8;color:#74b9ff;display:inline-block;margin-top:2px;'>🌙 Night Operations</span>"; bg="linear-gradient(90deg,rgba(41,128,185,0.2) 100%,{theme['card_bg']} 100%)"; }}
+                else {{ let prog=Math.floor(((currMins-srMins)/totalDaylight)*100), rem=ssMins-currMins; lbl=baseStr+"<br><span style='font-size:0.7rem;opacity:0.8;display:inline-block;margin-top:2px;'>"+Math.floor(rem/60)+"h "+(rem%60)+"m till Sunset</span>"; bg="linear-gradient(90deg,rgba(253,203,110,0.4) "+prog+"%,{theme['card_bg']} "+prog+"%)"; }}
                 sunEl.innerHTML=lbl; sunEl.style.background=bg;
             }}
         }} catch(e) {{}}
@@ -699,11 +668,11 @@ if chart_points and len(chart_points) >= 3:
     n = len(chart_points)
 
     chart_w = 560
-    chart_h = 200  # Increased height for better mobile visibility
-    pad_left = 80  # Increased padding for larger Y-axis text
+    chart_h = 200  
+    pad_left = 80  
     pad_right = 24
     pad_top = 20
-    pad_bottom = 40  # Increased padding for larger X-axis text
+    pad_bottom = 40  
     plot_w = chart_w - pad_left - pad_right
     plot_h = chart_h - pad_top - pad_bottom
 
@@ -713,7 +682,6 @@ if chart_points and len(chart_points) >= 3:
     pts = " ".join([f"{cx(i):.1f},{cy(v):.1f}" for i, v in enumerate(levels)])
     area_pts = f"{cx(0):.1f},{pad_top + plot_h} " + pts + f" {cx(n-1):.1f},{pad_top + plot_h}"
 
-    # Full pool reference line
     if y_min <= FULL_POOL_FT <= y_max:
         fp_y = cy(FULL_POOL_FT)
         full_pool_line = (
@@ -725,7 +693,6 @@ if chart_points and len(chart_points) >= 3:
     else:
         full_pool_line = ""
 
-    # Y gridlines — 4 ticks for more precision
     y_ticks = [y_min + (y_max - y_min) * k / 3 for k in range(4)]
     grid_lines = ""
     y_labels = ""
@@ -740,7 +707,6 @@ if chart_points and len(chart_points) >= 3:
             f'fill="{theme["sub_text"]}" font-family="Barlow Condensed,sans-serif" font-weight="700">{yv:.2f}</text>'
         )
 
-    # X labels — 5 evenly spaced
     x_label_indices = [0, n // 4, n // 2, 3 * n // 4, n - 1]
     x_labels = ""
     for idx in x_label_indices:
@@ -767,7 +733,6 @@ if chart_points and len(chart_points) >= 3:
         f'</svg>'
     )
 
-    # Build stat pills for the header bar
     delta_arrow = "▲" if delta_24h >= 0 else "▼"
     delta_col = "#2ecc71" if delta_24h >= 0 else "#e74c3c"
     pool_arrow = "▲" if pool_diff >= 0 else "▼"
@@ -785,7 +750,6 @@ if chart_points and len(chart_points) >= 3:
     sub = theme['sub_text']
     txt = theme['text']
     
-    # Updated stat pill to wrap dynamically on mobile and use a larger font
     stat_pill = (
         f'<span style="font-size:0.95rem;font-weight:700;font-family:Barlow Condensed,sans-serif; display:flex; flex-wrap:wrap; justify-content:center; gap:12px;">'
         f'<span style="color:{sub};">📏 Current: <b style="color:{txt}">{cur_disp}</b></span>'
@@ -957,9 +921,7 @@ places = [
 
     # ══════════════════════════════════════════════════════
     # LAUNCH / PARKS — every verified ramp on the lake
-    # Sources: Army Corps schedule + lakelanier.com/boat-ramps
     # ══════════════════════════════════════════════════════
-    # --- Army Corps / USACE parks ---
     {"name": "Balus Creek Park",           "lat": 34.2533889, "lon": -83.9144083, "type": "Launch", "hours": "Daily 7am–10pm",          "web": "https://lakelanier.com/boat-ramps/"},
     {"name": "Belton Bridge Park",         "lat": 34.4374510, "lon": -83.6807130, "type": "Launch", "hours": "Mar 24–Sep 22, 8am–10pm", "web": "https://lakelanier.com/boat-ramps/"},
     {"name": "Bolding Mill Park & Ramp",   "lat": 34.3382421, "lon": -83.9542324, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/parks/bolding-mill-park/"},
@@ -978,14 +940,12 @@ places = [
     {"name": "Van Pugh North Park",        "lat": 34.1873153, "lon": -83.9791274, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/parks/van-pugh-park/"},
     {"name": "Van Pugh South Ramp",        "lat": 34.1843066, "lon": -83.9872652, "type": "Launch", "hours": "May–Sep (Sat–Sun)",       "web": "https://lakelanier.com/van-pugh-south-park-day-camping-on-the-lake/"},
     {"name": "Vanns Tavern Ramp",          "lat": 34.2348805, "lon": -83.9821556, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/boat-ramps/"},
-    # --- Forsyth County parks ---
     {"name": "Charleston Park Ramp",       "lat": 34.2439624, "lon": -84.0461362, "type": "Launch", "hours": "Daily 7am–10pm",          "web": "https://lakelanier.com/directory/parks/charleston-park/"},
     {"name": "Shady Grove Campground",     "lat": 34.2100000, "lon": -84.0730000, "type": "Launch", "hours": "Seasonal (call ahead)",   "web": "https://lakelanier.com/directory/campgrounds/shady-grove-campground/"},
     {"name": "Six Mile Creek Park Ramp",   "lat": 34.2466862, "lon": -84.0393655, "type": "Launch", "hours": "Daily 7am–10pm",          "web": "https://lakelanier.com/directory/parks/six-mile-park/"},
     {"name": "Young Deer Creek Park",      "lat": 34.2206540, "lon": -84.0564720, "type": "Launch", "hours": "Daily 7am–10pm",          "web": "https://lakelanier.com/directory/parks/young-deer-park/"},
     {"name": "Mary Alice Park Ramp",       "lat": 34.1973656, "lon": -84.0984482, "type": "Launch", "hours": "Daily (fee $5)",          "web": "https://lakelanier.com/directory/parks/mary-alice-park/"},
     {"name": "Little Ridge Park",          "lat": 34.1904847, "lon": -84.0886591, "type": "Launch", "hours": "Daily 8am–10pm",          "web": "https://lakelanier.com/directory/parks/little-ridge-park/"},
-    # --- Hall County / Gainesville parks ---
     {"name": "Clarks Bridge Park",         "lat": 34.3533160, "lon": -83.7938753, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/parks/clarks-bridge-park/"},
     {"name": "Duckett Mill Park Ramp",     "lat": 34.3073924, "lon": -83.9309592, "type": "Launch", "hours": "Mar 26–Nov 16",           "web": "https://lakelanier.com/directory/parks/duckett-mill-park/"},
     {"name": "Lanier Point Park",          "lat": 34.2990922, "lon": -83.8680517, "type": "Launch", "hours": "Open 24 hours",           "web": "https://lakelanier.com/directory/parks/lanier-point-park/"},
@@ -997,14 +957,11 @@ places = [
     {"name": "Simpson Park Ramp",          "lat": 34.3203405, "lon": -83.8917663, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/parks/simpson-park/"},
     {"name": "Nix Bridge Park",            "lat": 34.3629432, "lon": -83.9850366, "type": "Launch", "hours": "Daily 8am–10pm",          "web": "https://lakelanier.com/directory/parks/nix-bridge-park/"},
     {"name": "Thompson Bridge Park",       "lat": 34.3720000, "lon": -83.9660000, "type": "Launch", "hours": "Mar 24–Sep 22",           "web": "https://lakelanier.com/directory/parks/thompson-bridge-park/"},
-    # --- Dawson County parks ---
     {"name": "War Hill Park Ramp",         "lat": 34.3341563, "lon": -83.9627713, "type": "Launch", "hours": "Daily (fee $3)",          "web": "https://lakelanier.com/directory/campgrounds/war-hill/"},
     {"name": "Wahoo Creek Park Ramp",      "lat": 34.3865982, "lon": -83.8598834, "type": "Launch", "hours": "Daily 7am–10pm",          "web": "https://lakelanier.com/directory/parks/wahoo-creek-park/"},
     {"name": "Toto Creek Campground",      "lat": 34.3950219, "lon": -83.9802421, "type": "Launch", "hours": "Feb 28–Oct 31",           "web": "https://www.recreation.gov/camping/toto-creek-campground/r/campgroundDetails.do?contractCode=NRSO&parkId=151041"},
-    # --- Lumpkin County ---
     {"name": "Shoal Creek Park Ramp",      "lat": 34.1586087, "lon": -84.0078342, "type": "Launch", "hours": "Daily 7am–10pm",          "web": "https://lakelanier.com/directory/parks/shoal-creek-park/"},
     {"name": "Big Creek Park Ramp",        "lat": 34.1659897, "lon": -83.9950671, "type": "Launch", "hours": "Daily 6am–10pm",          "web": "https://lakelanier.com/directory/parks/big-creek-park/"},
-    # --- State Park ---
     {"name": "Don Carter State Park",      "lat": 34.3875314, "lon": -83.7479736, "type": "Launch", "hours": "Daily 8am–5pm (fee req)", "web": "https://gastateparks.org/DonCarter"},
 ]
 
