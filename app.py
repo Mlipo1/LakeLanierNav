@@ -99,32 +99,31 @@ def fetch_data():
 @st.cache_data(ttl=300)
 def fetch_water_temps():
     """
-    Pulls water temperature from multiple sources for Lake Lanier.
+    Pulls water temperature from up to 6 sources for Lake Lanier.
     Sources:
-      1. USGS Chattahoochee R. below Buford Dam (02334430) - param 00010 - outflow temp sensor, most reliable
-      2. USGS Flowery Branch gauge (02334480) - param 00010
-      3. Omnia Fishing - scrapes their Lake Lanier current conditions page
-      4. Lake Monster scrape (fallback HTML)
+      1. USGS Below Buford Dam (02334430) — outflow sensor, most authoritative
+      2. USGS Flowery Branch (02334480) — cove/inflow reading
+      3. USGS Chestatee River at Gainesville (02334885) — NE arm tributary
+      4. USGS Chattahoochee at Cornelia (02331000) — upper inflow
+      5. Omnia Fishing — crowd-sourced/aggregated lake temp
+      6. Lake Monster — web scrape
 
-    NOTE: Open-Meteo ERA5 lake surface temp has been removed - it lags reality by
-    weeks and consistently reads 10-15°F too warm for Lake Lanier.
-    USGS 02334400 (Buford Dam reservoir gauge) does NOT have a 00010 water temp
-    sensor - it only reports elevation/level data.
+    All readings sanity-checked to 35–85°F. Median used as the reported value.
+    Open-Meteo ERA5 removed — lags reality by weeks, skews 10–15°F warm.
+    USGS 02334400 removed — reservoir level gauge only, no temp sensor.
     """
     import statistics
 
     readings = {}
 
     # ---- Source 1: USGS Chattahoochee R. Below Buford Dam (02334430) ----
-    # This gauge is ON the outflow of Buford Dam — measures actual released water temp
+    # Outflow of Buford Dam — real sensor, most authoritative
     try:
         url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334430&parameterCd=00010"
         res = requests.get(url, timeout=6).json()
         ts = res['value']['timeSeries']
         if ts:
-            val_raw = ts[0]['values'][0]['value'][0]['value']
-            val_c = float(val_raw)
-            # Sanity check: water temp in lake should be 35-85°F year-round
+            val_c = float(ts[0]['values'][0]['value'][0]['value'])
             val_f = round(val_c * 9 / 5 + 32, 1)
             if 35 <= val_f <= 85:
                 readings["USGS Below Buford Dam"] = val_f
@@ -144,12 +143,39 @@ def fetch_water_temps():
     except Exception:
         pass
 
-    # ---- Source 3: Omnia Fishing scrape ----
+    # ---- Source 3: USGS Chestatee River at Gainesville (02334885) ----
+    # Tributary feeding NE arm of Lanier — real temp sensor
+    try:
+        url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334885&parameterCd=00010"
+        res = requests.get(url, timeout=6).json()
+        ts = res['value']['timeSeries']
+        if ts:
+            val_c = float(ts[0]['values'][0]['value'][0]['value'])
+            val_f = round(val_c * 9 / 5 + 32, 1)
+            if 35 <= val_f <= 85:
+                readings["USGS Chestatee R."] = val_f
+    except Exception:
+        pass
+
+    # ---- Source 4: USGS Chattahoochee R. at Cornelia (02331000) ----
+    # Upper Chattahoochee inflow — another real upstream temp gauge
+    try:
+        url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02331000&parameterCd=00010"
+        res = requests.get(url, timeout=6).json()
+        ts = res['value']['timeSeries']
+        if ts:
+            val_c = float(ts[0]['values'][0]['value'][0]['value'])
+            val_f = round(val_c * 9 / 5 + 32, 1)
+            if 35 <= val_f <= 85:
+                readings["USGS Chattahoochee (Cornelia)"] = val_f
+    except Exception:
+        pass
+
+    # ---- Source 5: Omnia Fishing scrape ----
     try:
         url = "https://www.omniafishing.com/w/lake-lanier-fishing-reports/current-conditions"
         headers = {'User-Agent': 'Mozilla/5.0 (compatible; LanierNav/1.0)'}
         res = requests.get(url, headers=headers, timeout=7)
-        # Look for temperature pattern like "47º" or "47°F" or "47 F"
         match = re.search(r'(\d{2,3})\s*[º°]\s*(?:F(?:ahrenheit)?)?', res.text)
         if match:
             val = int(match.group(1))
@@ -158,7 +184,7 @@ def fetch_water_temps():
     except Exception:
         pass
 
-    # ---- Source 4: Lake Monster scrape ----
+    # ---- Source 6: Lake Monster scrape ----
     try:
         lm_url = "https://lakemonster.com/lake/GA/Lake-Lanier-234"
         headers = {'User-Agent': 'Mozilla/5.0 (compatible; LanierNav/1.0)'}
@@ -187,7 +213,7 @@ def fetch_water_temps():
     low_val = round(min(vals), 1)
 
     n = len(vals)
-    confidence = "High" if n >= 3 else "Medium" if n == 2 else "Low (1 source)"
+    confidence = "High" if n >= 4 else "Medium" if n >= 2 else "Low (1 source)"
 
     return {
         "sources": readings,
@@ -562,39 +588,28 @@ st.markdown(f"""
     .score-bar-fill {{ height: 10px; border-radius: 10px; transition: width 1s ease; }}
 
     /* ---- MOBILE ---- */
-    @media (max-width: 768px) {{
-        /* More breathing room on all cards */
-        .metric-card {{ padding: 16px 12px !important; border-radius: 14px !important; }}
-        .metric-value {{ font-size: 1.8rem !important; }}
-        .metric-title {{ font-size: 0.68rem !important; margin-bottom: 4px !important; }}
-        .metric-sub {{ font-size: 0.72rem !important; }}
-        .section-header {{ font-size: 1.1rem; margin: 16px 0 8px 0; }}
-        .score-card {{ padding: 14px; }}
-        .chart-wrapper {{ padding: 12px 8px 6px 8px; }}
-        .wind-container {{ padding: 14px; border-radius: 14px; }}
-        .wind-stats-box {{ padding: 12px 16px; }}
-        .alert-content {{ font-size: 0.85rem; line-height: 1.5; }}
-        .alert-summary {{ font-size: 0.95rem; padding: 12px 14px; }}
-    }}
-
     @media (max-width: 640px) {{
-        .main-title {{ text-align: center; margin-bottom: 6px; font-size: 1.5rem !important; }}
-        /* 2-col grid, water temp spans full width for readability */
-        .metrics-grid {{ grid-template-columns: 1fr 1fr; gap: 10px; }}
+        .main-title {{ text-align: center; margin-bottom: 8px; font-size: 1.55rem !important; white-space: normal !important; }}
+        .metrics-grid {{ grid-template-columns: 1fr 1fr; gap: 8px; }}
         .metrics-grid .metric-card:nth-child(3) {{ grid-column: span 2; }}
-        .metric-value {{ font-size: 1.7rem !important; }}
-        /* Pills: 2 per row on small screens */
-        .pill-container {{ gap: 8px; }}
-        .info-pill {{ flex: 1 1 calc(50% - 8px); min-width: 0; min-height: 52px; font-size: 0.8rem; padding: 8px 10px; }}
+        .metric-value {{ font-size: 1.65rem !important; }}
+        .metric-card {{ padding: 14px 12px !important; border-radius: 13px !important; }}
+        .metric-sub {{ font-size: 0.72rem !important; }}
+        .info-pill {{ font-size: 0.75rem; min-width: 100px; min-height: 48px; padding: 5px 8px; }}
+        .pill-container {{ gap: 6px; }}
         div[data-testid="stToggle"] {{ width: 100%; display: flex; justify-content: center; }}
-        .wind-merged {{ flex-direction: column; text-align: center; gap: 12px; }}
+        .wind-merged {{ flex-direction: column; text-align: center; }}
         .wind-stats-box {{ width: 100%; padding: 12px; min-width: unset; }}
+        .wind-container {{ padding: 14px; border-radius: 14px; }}
+        .chart-wrapper {{ padding: 14px 10px 8px 10px; }}
+        .section-header {{ font-size: 1.1rem; }}
+        .score-card {{ padding: 14px; }}
     }}
 
-    @media (max-width: 400px) {{
-        .metric-value {{ font-size: 1.5rem !important; }}
-        .info-pill {{ font-size: 0.75rem; min-height: 48px; }}
-        .main-title {{ font-size: 1.35rem !important; }}
+    @media (max-width: 380px) {{
+        .metric-value {{ font-size: 1.4rem !important; }}
+        .info-pill {{ min-width: 90px; font-size: 0.7rem; }}
+        .main-title {{ font-size: 1.3rem !important; }}
     }}
     </style>
 """, unsafe_allow_html=True)
@@ -709,7 +724,7 @@ if d['air_temp'] != "N/A":
 
 # Build source rows for popup
 _src_rows_html = ""
-src_icon_map = {"USGS Below Buford Dam": "🏛️", "USGS Flowery Branch": "📍", "Omnia Fishing": "🎣", "Lake Monster": "🐊"}
+src_icon_map = {"USGS Below Buford Dam": "🏛️", "USGS Flowery Branch": "📍", "USGS Chestatee R.": "🏔️", "USGS Chattahoochee (Cornelia)": "🌊", "Omnia Fishing": "🎣", "Lake Monster": "🐊"}
 for sn, sv in wt_data["sources"].items():
     ico = src_icon_map.get(sn, "🌡️")
     if st.session_state.is_metric:
@@ -970,7 +985,7 @@ wt_modal_html = f"""
       </div>
 
       <div class="wt-footer">
-        Refreshes every 5 min · USGS 02334430 & 02334480 · Omnia Fishing · Lake Monster<br>
+        Refreshes every 5 min · USGS gauges 02334430, 02334480, 02334885, 02331000 · Omnia Fishing · Lake Monster<br>
         ⚠ Surface temp varies by depth, cove, and time of day
       </div>
 
@@ -1354,358 +1369,238 @@ nav_html = f"""
 <!DOCTYPE html><html><head>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <style>
-*, *::before, *::after {{ box-sizing: border-box; }}
-body {{ margin:0; padding:0; font-family:'Barlow',-apple-system,sans-serif; background:transparent; overflow:hidden; }}
-
-/* ── BASE MAP CONTAINER (embedded mode) ── */
-#map-container {{
-    position:relative; height:600px; width:100%;
-    border-radius:14px; overflow:hidden;
-    border:1px solid {theme['border']};
-    box-shadow:0 4px 20px rgba(0,0,0,0.15);
-    transition: all 0.3s ease;
-}}
+body {{ margin:0; padding:0; font-family:-apple-system,sans-serif; background:transparent; touch-action:none; }}
+#map-container {{ position:relative; height:600px; width:100%; border-radius:14px; overflow:hidden; border:1px solid {theme['border']}; box-shadow:0 4px 20px rgba(0,0,0,0.12); }}
 #map {{ height:100%; width:100%; z-index:1; }}
 
-/* ── FULLSCREEN MODE ── */
-body.fullscreen-active {{
-    position:fixed; inset:0; z-index:999999; overflow:hidden;
-    background:#000;
-}}
-body.fullscreen-active #map-container {{
-    position:fixed; inset:0; height:100dvh; width:100vw;
-    border-radius:0; border:none; box-shadow:none;
-    z-index:999999;
-}}
-
-/* ── FULLSCREEN TOGGLE BUTTON ── */
-#fullscreen-btn {{
-    position:absolute; bottom:14px; left:14px; z-index:1002;
-    background:{theme['card_bg']}; color:{theme['text']};
-    border:1px solid {theme['border']}; border-radius:10px;
-    padding:8px 12px; cursor:pointer; font-size:0.78rem; font-weight:700;
-    display:flex; align-items:center; gap:6px;
-    box-shadow:0 2px 8px rgba(0,0,0,0.3); transition:all 0.2s;
-    font-family:'Barlow Condensed',sans-serif; letter-spacing:0.5px;
-}}
-#fullscreen-btn:active {{ transform:scale(0.96); }}
-body.fullscreen-active #fullscreen-btn {{
-    bottom:20px; left:20px;
-    background:rgba(20,24,38,0.92); color:white; border-color:rgba(255,255,255,0.2);
-}}
-
-/* ── NAV DASHBOARD (slides up from bottom) ── */
 #nav-dashboard {{
     position:absolute; bottom:0; left:0; width:100%; z-index:1001;
-    background:{dash_bg}; backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
-    color:{theme['text']}; padding:16px 20px 22px; border-top:3px solid #3498db;
+    background:{dash_bg}; backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+    color:{theme['text']}; padding:14px 16px 18px; border-top:3px solid #3498db;
     box-sizing:border-box; border-radius:20px 20px 0 0;
-    transform:translateY(110%); transition:transform 0.3s cubic-bezier(0.2,0.9,0.3,1);
-    box-shadow:0 -8px 30px rgba(0,0,0,0.35);
+    transform:translateY(110%); transition:transform 0.3s cubic-bezier(0.1,0.8,0.2,1);
+    box-shadow:0 -6px 24px rgba(0,0,0,0.3);
 }}
 #nav-dashboard.active {{ transform:translateY(0); }}
+.stats-grid {{ display:grid; grid-template-columns:repeat(3,1fr); text-align:center; margin-top:6px; gap:6px; }}
+.stat-box {{ background:{'rgba(255,255,255,0.05)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'}; border-radius:10px; padding:8px 4px; }}
+.stat-val {{ font-size:1.6rem; font-weight:900; line-height:1.2; font-family:'Barlow Condensed',sans-serif; }}
+.stat-lbl {{ font-size:0.65rem; opacity:0.75; font-weight:700; text-transform:uppercase; letter-spacing:1px; }}
+.stat-unit {{ font-size:0.58rem; opacity:0.5; }}
 
-.nav-header {{ display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }}
-.nav-dest {{ font-size:1rem; font-weight:800; color:#3498db; font-family:'Barlow Condensed',sans-serif; letter-spacing:0.3px; max-width:70%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
-.stop-btn {{ background:#e74c3c; color:white; border:none; padding:8px 16px; border-radius:20px; font-weight:700; cursor:pointer; font-size:0.82rem; font-family:'Barlow Condensed',sans-serif; letter-spacing:0.5px; }}
-.stop-btn:active {{ background:#c0392b; }}
-
-.stats-grid {{ display:grid; grid-template-columns:repeat(3,1fr); text-align:center; gap:8px; }}
-.stat-box {{ background:{'rgba(255,255,255,0.05)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'}; border-radius:12px; padding:10px 6px; }}
-.stat-val {{ font-size:1.8rem; font-weight:900; line-height:1; font-family:'Barlow Condensed',sans-serif; }}
-.stat-lbl {{ font-size:0.62rem; opacity:0.65; font-weight:700; text-transform:uppercase; letter-spacing:1px; margin-bottom:2px; }}
-.stat-unit {{ font-size:0.6rem; opacity:0.5; margin-top:2px; }}
-
-/* ── SEARCH ── */
-#search-container {{ position:absolute; top:12px; left:12px; z-index:1000; width:58%; max-width:280px; }}
-#poi-search {{
-    width:100%; padding:11px 16px; border-radius:24px;
-    border:2px solid #3498db; background:{theme['card_bg']}; color:{theme['text']};
-    font-weight:600; font-size:0.9rem; outline:none;
-    box-shadow:0 4px 14px rgba(0,0,0,0.28); box-sizing:border-box;
-}}
-#search-results {{
-    display:none; background:{theme['card_bg']}; margin-top:6px; border-radius:14px;
-    border:1px solid {theme['border']}; box-shadow:0 6px 20px rgba(0,0,0,0.35);
-    overflow:hidden; max-height:220px; overflow-y:auto;
-}}
-.search-item {{ padding:11px 15px; cursor:pointer; border-bottom:1px solid {theme['border']}; color:{theme['text']}; font-size:0.85rem; }}
+#search-container {{ position:absolute; top:10px; left:10px; z-index:1000; width:60%; max-width:300px; }}
+#poi-search {{ width:100%; padding:11px 15px; border-radius:24px; border:2px solid #3498db; background:{theme['card_bg']}; color:{theme['text']}; font-weight:600; font-size:0.95rem; outline:none; box-shadow:0 4px 12px rgba(0,0,0,0.25); box-sizing:border-box; }}
+#search-results {{ display:none; background:{theme['card_bg']}; margin-top:5px; border-radius:12px; border:1px solid {theme['border']}; box-shadow:0 4px 18px rgba(0,0,0,0.35); overflow:hidden; max-height:240px; overflow-y:auto; }}
+.search-item {{ padding:11px 15px; cursor:pointer; border-bottom:1px solid {theme['border']}; color:{theme['text']}; font-size:0.88rem; }}
 .search-item:last-child {{ border-bottom:none; }}
-.search-item:active {{ background:rgba(52,152,219,0.2); }}
+.search-item:hover {{ background:rgba(52,152,219,0.15); }}
 
-/* ── FILTER PANEL ── */
-#filter-panel {{
-    position:absolute; top:12px; right:12px; z-index:1000;
-    background:{dash_bg}; backdrop-filter:blur(8px);
-    color:{theme['text']}; padding:8px 12px; border-radius:12px;
-    box-shadow:0 4px 14px rgba(0,0,0,0.28); border:1px solid {theme['border']};
-    font-size:0.82rem; font-weight:700;
-}}
-.filter-cb {{ margin-right:5px; transform:scale(1.2); cursor:pointer; accent-color:#3498db; }}
-.filter-row {{ margin-bottom:5px; display:flex; align-items:center; cursor:pointer; gap:2px; }}
+#filter-panel {{ position:absolute; top:10px; right:10px; z-index:1000; background:{dash_bg}; backdrop-filter:blur(6px); color:{theme['text']}; padding:8px 12px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.25); border:1px solid {theme['border']}; font-size:0.88rem; font-weight:700; }}
+.filter-cb {{ margin-right:5px; transform:scale(1.15); cursor:pointer; accent-color:#3498db; }}
+.filter-row {{ margin-bottom:5px; display:flex; align-items:center; cursor:pointer; }}
 .filter-row:last-child {{ margin-bottom:0; }}
 
-/* ── MARKERS ── */
-.map-marker {{
-    width:36px; height:36px; background:white; border-radius:50%;
-    display:flex; align-items:center; justify-content:center;
-    box-shadow:0 3px 10px rgba(0,0,0,0.4); font-size:18px; border:2.5px solid white;
-    transition:transform 0.15s; cursor:pointer;
-}}
-.map-marker:active {{ transform:scale(1.2); }}
+.map-marker {{ width:34px; height:34px; background:white; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 8px rgba(0,0,0,0.4); font-size:18px; border:2.5px solid white; transition:transform 0.2s; }}
+.map-marker:hover {{ transform:scale(1.15); }}
 .marker-dining {{ border-color:#e74c3c; background:#fff5f5; }}
 .marker-fuel {{ border-color:#f39c12; background:#fffbf0; }}
 .marker-marina {{ border-color:#3498db; background:#eaf4fd; }}
 .marker-launch {{ border-color:#27ae60; background:#edfaf1; }}
 
-.poi-label {{
-    background:transparent!important; border:none!important; box-shadow:none!important;
-    color:{theme['text']}!important; font-weight:800!important; font-size:0.82rem!important;
-    text-shadow:1px 1px 0 {theme['bg']},-1px -1px 0 {theme['bg']},1px -1px 0 {theme['bg']},-1px 1px 0 {theme['bg']}!important;
-    opacity:0!important; pointer-events:none!important; transition:opacity 0.3s!important;
-    white-space:nowrap!important;
-}}
+.poi-label {{ background:transparent!important; border:none!important; box-shadow:none!important; color:{theme['text']}!important; font-weight:800!important; font-size:0.88rem!important; text-shadow:2px 2px 0 {theme['bg']},-2px -2px 0 {theme['bg']},2px -2px 0 {theme['bg']},-2px 2px 0 {theme['bg']}!important; opacity:0!important; pointer-events:none!important; transition:opacity 0.3s!important; }}
 #map.show-labels .poi-label {{ opacity:1!important; }}
 
-/* ── POPUP ── */
-.leaflet-popup-content-wrapper {{ border-radius:14px!important; box-shadow:0 8px 24px rgba(0,0,0,0.2)!important; }}
-.start-btn {{
-    background:linear-gradient(135deg,#2980b9,#3498db); color:white; border:none;
-    padding:11px 16px; border-radius:10px; font-weight:700; font-size:0.88rem;
-    cursor:pointer; margin-top:10px; width:100%;
-    font-family:'Barlow Condensed',sans-serif; letter-spacing:0.5px;
-}}
+.start-btn {{ background:#3498db; color:white; border:none; padding:10px 15px; border-radius:10px; font-weight:700; font-size:0.88rem; cursor:pointer; margin-top:10px; width:100%; font-family:'Barlow Condensed',sans-serif; letter-spacing:0.5px; }}
 .start-btn:active {{ background:#2980b9; }}
+.stop-btn {{ background:#e74c3c; color:white; border:none; padding:7px 14px; border-radius:16px; font-weight:700; cursor:pointer; font-size:0.8rem; }}
+.nav-arrow-marker {{ display:flex; align-items:center; justify-content:center; transition:transform 0.1s linear; transform-origin:center; }}
 
-/* ── RECENTER ── */
-#recenter-btn {{
-    display:none; position:absolute; bottom:58px; right:14px; z-index:1002;
-    background:{theme['card_bg']}; color:#3498db;
-    border:2px solid #3498db; width:46px; height:46px; border-radius:50%; padding:0;
-    box-shadow:0 4px 14px rgba(0,0,0,0.3); cursor:pointer;
-    align-items:center; justify-content:center; transition:all 0.2s;
-}}
+#recenter-btn {{ display:none; position:absolute; bottom:130px; right:14px; z-index:1000; background:{theme['card_bg']}; color:#3498db; border:2px solid #3498db; width:44px; height:44px; border-radius:50%; padding:0; box-shadow:0 4px 12px rgba(0,0,0,0.3); cursor:pointer; align-items:center; justify-content:center; transition:all 0.2s; }}
 #recenter-btn:active {{ background:#3498db; color:white; }}
 
-.nav-arrow-marker {{ display:flex; align-items:center; justify-content:center; transition:transform 0.08s linear; transform-origin:center; }}
+#fullscreen-btn {{
+    position:absolute; bottom:14px; left:14px; z-index:1002;
+    background:{theme['card_bg']}; color:{theme['text']};
+    border:1px solid {theme['border']}; border-radius:10px;
+    padding:8px 12px; cursor:pointer; font-size:0.75rem; font-weight:700;
+    display:flex; align-items:center; gap:6px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.25); font-family:'Barlow Condensed',sans-serif; letter-spacing:0.5px;
+}}
+#fullscreen-btn:active {{ opacity:0.8; }}
 
-/* ── MOBILE ── */
+/* Fullscreen mode — expands the iframe's inner content only */
+body.fs #map-container {{
+    position:fixed; inset:0; height:100vh; width:100vw;
+    border-radius:0; border:none; z-index:99999;
+}}
+body.fs {{ overflow:hidden; }}
+
 @media (max-width:600px) {{
-    #search-container {{ width:calc(100% - 110px); max-width:none; left:10px; }}
-    #filter-panel {{ top:10px; right:10px; padding:6px 10px; font-size:0.76rem; }}
-    #map-container {{ height:480px; border-radius:12px; }}
-    .stat-val {{ font-size:1.5rem; }}
-    #nav-dashboard {{ padding:14px 16px 20px; }}
-    body.fullscreen-active #map-container {{ height:100dvh; }}
+    #search-container {{ width:88%; max-width:none; left:6%; }}
+    #filter-panel {{ top:72px; right:6%; display:flex; gap:8px; padding:7px 10px; }}
+    .filter-row {{ margin-bottom:0; font-size:0.8rem; }}
+    #map-container {{ height:500px; }}
 }}
 </style></head><body>
 <div id="map-container">
-
-    <!-- Search -->
     <div id="search-container">
-        <input type="text" id="poi-search" placeholder="🔍 Search destinations..." oninput="filterSearch()" autocomplete="off">
+        <input type="text" id="poi-search" placeholder="🔍 Search destinations..." oninput="filterSearch()">
         <div id="search-results"></div>
     </div>
-
-    <!-- Filters -->
     <div id="filter-panel">
-        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Dining" checked onchange="renderMarkers()"> 🍔</label>
-        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Fuel" checked onchange="renderMarkers()"> ⛽</label>
-        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Marina" checked onchange="renderMarkers()"> ⚓</label>
-        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Launch" checked onchange="renderMarkers()"> 🚤</label>
+        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Dining" checked onchange="renderMarkers()"> 🍔 Dining</label>
+        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Fuel" checked onchange="renderMarkers()"> ⛽ Fuel</label>
+        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Marina" checked onchange="renderMarkers()"> ⚓ Marina</label>
+        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Launch" checked onchange="renderMarkers()"> 🚤 Launch</label>
     </div>
-
-    <!-- Recenter -->
     <button id="recenter-btn" onclick="recenterMap()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/>
         </svg>
     </button>
-
-    <!-- Fullscreen toggle -->
-    <button id="fullscreen-btn" onclick="toggleFullscreen()">
-        <svg id="fs-icon-expand" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-        </svg>
-        <svg id="fs-icon-shrink" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none">
-            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 0 2-2h3M3 16h3a2 2 0 0 0 2 2v3"/>
-        </svg>
-        <span id="fs-label">Full Screen</span>
+    <button id="fullscreen-btn" onclick="toggleFS()">
+        <svg id="fs-expand" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        <svg id="fs-shrink" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 0 2-2h3M3 16h3a2 2 0 0 0 2 2v3"/></svg>
+        <span id="fs-lbl">Full Screen</span>
     </button>
-
-    <!-- Nav dashboard -->
     <div id="nav-dashboard">
-        <div class="nav-header">
-            <div class="nav-dest" id="nav-title">Navigating…</div>
-            <button class="stop-btn" onclick="stopNav()">🛑 Stop Nav</button>
+        <div style="font-size:1.05rem; font-weight:800; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-family:'Barlow Condensed',sans-serif;">
+            <span id="nav-title" style="color:#3498db; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:72%;">Navigating...</span>
+            <button class="stop-btn" onclick="stopNav()">🛑 Stop</button>
         </div>
         <div class="stats-grid">
-            <div class="stat-box">
-                <div class="stat-lbl">Speed</div>
-                <div class="stat-val" id="gps-speed">--</div>
-                <div class="stat-unit" id="lbl-speed">mph</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-lbl">Distance</div>
-                <div class="stat-val" id="gps-dist" style="color:#e74c3c">--</div>
-                <div class="stat-unit" id="lbl-dist">miles</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-lbl">ETA</div>
-                <div class="stat-val" id="gps-eta" style="color:#3498db">--</div>
-                <div class="stat-unit">mins</div>
-            </div>
+            <div class="stat-box"><div class="stat-lbl">Speed</div><div class="stat-val" id="gps-speed">--</div><div class="stat-unit" id="lbl-speed">mph</div></div>
+            <div class="stat-box"><div class="stat-lbl">Distance</div><div class="stat-val" id="gps-dist" style="color:#e74c3c">--</div><div class="stat-unit" id="lbl-dist">miles</div></div>
+            <div class="stat-box"><div class="stat-lbl">ETA</div><div class="stat-val" id="gps-eta" style="color:#3498db">--</div><div class="stat-unit">mins</div></div>
         </div>
     </div>
-
     <div id="map"></div>
 </div>
 
 <script>
 var isMetric={js_metric_flag};
 var map=L.map('map',{{zoomControl:false}}).setView([34.20,-83.97],11);
-L.tileLayer('{map_tile_url}',{{attribution:'&copy; Carto',maxZoom:19}}).addTo(map);
+L.tileLayer('{map_tile_url}',{{attribution:'&copy; Carto'}}).addTo(map);
 L.control.zoom({{position:'topright'}}).addTo(map);
 
 var places={places_json};
 var markersLayer=L.layerGroup().addTo(map);
-var isFullscreen=false;
 
-/* ── FULLSCREEN ── */
-window.toggleFullscreen=function(){{
-    isFullscreen=!isFullscreen;
-    document.body.classList.toggle('fullscreen-active',isFullscreen);
-    document.getElementById('fs-icon-expand').style.display=isFullscreen?'none':'block';
-    document.getElementById('fs-icon-shrink').style.display=isFullscreen?'block':'none';
-    document.getElementById('fs-label').innerText=isFullscreen?'Exit Full':'Full Screen';
-
-    if(isFullscreen){{
-        // Lock parent page scroll so fullscreen covers everything
-        try{{
-            let ps=window.parent.document.getElementById('nav-fs-style');
-            if(!ps){{ ps=window.parent.document.createElement('style'); ps.id='nav-fs-style'; window.parent.document.head.appendChild(ps); }}
-            ps.innerHTML='body,html{{ overflow:hidden!important; }} header[data-testid="stHeader"]{{ display:none!important; }}';
-            window.parent.document.body.style.overflow='hidden';
-        }}catch(e){{}}
-    }} else {{
-        try{{
-            let ps=window.parent.document.getElementById('nav-fs-style');
-            if(ps) ps.innerHTML='';
-            window.parent.document.body.style.overflow='';
-        }}catch(e){{}}
-    }}
-    setTimeout(()=>map.invalidateSize(),50);
-}};
-
-/* ── MARKERS ── */
 var iconMap={{
-    "Dining":L.divIcon({{className:'',html:'<div class="map-marker marker-dining">🍔</div>',iconSize:[36,36],iconAnchor:[18,18],popupAnchor:[0,-18]}}),
-    "Fuel":  L.divIcon({{className:'',html:'<div class="map-marker marker-fuel">⛽</div>',  iconSize:[36,36],iconAnchor:[18,18],popupAnchor:[0,-18]}}),
-    "Marina":L.divIcon({{className:'',html:'<div class="map-marker marker-marina">⚓</div>',iconSize:[36,36],iconAnchor:[18,18],popupAnchor:[0,-18]}}),
-    "Launch":L.divIcon({{className:'',html:'<div class="map-marker marker-launch">🚤</div>',iconSize:[36,36],iconAnchor:[18,18],popupAnchor:[0,-18]}})
+    "Dining":L.divIcon({{className:'',html:'<div class="map-marker marker-dining">🍔</div>',iconSize:[34,34],iconAnchor:[17,17],popupAnchor:[0,-17]}}),
+    "Fuel":L.divIcon({{className:'',html:'<div class="map-marker marker-fuel">⛽</div>',iconSize:[34,34],iconAnchor:[17,17],popupAnchor:[0,-17]}}),
+    "Marina":L.divIcon({{className:'',html:'<div class="map-marker marker-marina">⚓</div>',iconSize:[34,34],iconAnchor:[17,17],popupAnchor:[0,-17]}}),
+    "Launch":L.divIcon({{className:'',html:'<div class="map-marker marker-launch">🚤</div>',iconSize:[34,34],iconAnchor:[17,17],popupAnchor:[0,-17]}})
 }};
-var targetIcon=L.divIcon({{className:'',html:'<div style="font-size:32px;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.5));">📍</div>',iconSize:[32,32],iconAnchor:[16,32],popupAnchor:[0,-32]}});
+var targetIcon=L.divIcon({{className:'',html:'<div style="font-size:30px;text-shadow:0 4px 8px rgba(0,0,0,0.5);">📍</div>',iconSize:[30,30],iconAnchor:[15,30],popupAnchor:[0,-30]}});
 
 window.renderMarkers=function(){{
     markersLayer.clearLayers();
-    var active=Array.from(document.querySelectorAll('.filter-cb')).filter(c=>c.checked).map(c=>c.value);
+    var cbs=document.querySelectorAll('.filter-cb');
+    var active=Array.from(cbs).filter(c=>c.checked).map(c=>c.value);
     places.forEach((p,i)=>{{
-        if(!active.includes(p.type)) return;
-        var icon=iconMap[p.type]||iconMap["Marina"];
-        var m=L.marker([p.lat,p.lon],{{icon}}).addTo(markersLayer);
-        m.bindTooltip(L.tooltip({{permanent:true,direction:'bottom',className:'poi-label',offset:[0,8]}}).setContent(p.name));
-        m.bindPopup(`<div style="text-align:center;min-width:170px;font-family:-apple-system,sans-serif;padding:4px 2px;">
-            <b style="font-size:1rem;color:#1a1a2e;display:block;margin-bottom:3px;">${{p.name}}</b>
-            <span style="font-size:0.72rem;color:#7f8c8d;text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">${{p.type}}</span>
-            <div style="font-size:0.82rem;margin:8px 0;color:#2c3e50;background:#f8f9fa;padding:6px 8px;border-radius:8px;line-height:1.4;">🕒 ${{p.hours}}</div>
-            <a href="${{p.web}}" target="_blank" rel="noopener" style="font-size:0.85rem;color:#3498db;text-decoration:none;font-weight:700;">🌐 More Info</a><br/>
-            <button class="start-btn" onclick="startNav(${{i}})">🧭 Navigate Here</button>
-        </div>`);
+        if(active.includes(p.type)){{
+            var icon=iconMap[p.type]||iconMap["Marina"];
+            var m=L.marker([p.lat,p.lon],{{icon}}).addTo(markersLayer);
+            m.bindTooltip(L.tooltip({{permanent:true,direction:'bottom',className:'poi-label',offset:[0,8]}}).setContent(p.name));
+            m.bindPopup(`<div style="text-align:center;min-width:160px;font-family:sans-serif;">
+                <b style="font-size:1rem;color:#2c3e50;display:block;margin-bottom:2px;">${{p.name}}</b>
+                <span style="font-size:0.75rem;color:#7f8c8d;text-transform:uppercase;font-weight:700;">${{p.type}}</span>
+                <div style="font-size:0.82rem;margin:8px 0;color:#333;background:#f0f2f6;padding:5px 8px;border-radius:6px;">🕒 ${{p.hours}}</div>
+                <a href="${{p.web}}" target="_blank" style="font-size:0.85rem;color:#3498db;text-decoration:none;font-weight:700;">🌐 Website</a><br/>
+                <button class="start-btn" onclick="startNav(${{i}})">🧭 Navigate Here</button>
+            </div>`);
+        }}
     }});
 }};
 renderMarkers();
 
-map.on('zoomend',()=>document.getElementById('map').classList[map.getZoom()>=13?'add':'remove']('show-labels'));
+map.on('zoomend',function(){{ document.getElementById('map').classList[map.getZoom()>=13?'add':'remove']('show-labels'); }});
 
-/* ── SEARCH ── */
 window.filterSearch=function(){{
-    var q=document.getElementById('poi-search').value.toLowerCase().trim();
+    var q=document.getElementById('poi-search').value.toLowerCase();
     var rd=document.getElementById('search-results');
+    rd.innerHTML='';
     if(!q){{rd.style.display='none';return;}}
     var matches=places.filter(p=>p.name.toLowerCase().includes(q)||p.type.toLowerCase().includes(q));
-    if(!matches.length){{rd.style.display='none';return;}}
-    rd.innerHTML=''; rd.style.display='block';
-    matches.slice(0,8).forEach(m=>{{
-        var idx=places.indexOf(m);
-        var div=document.createElement('div'); div.className='search-item';
-        div.innerHTML=`<b>${{m.name}}</b> <span style="font-size:0.7rem;opacity:0.6;">· ${{m.type}}</span>`;
-        div.onclick=()=>{{
-            document.getElementById('poi-search').value=''; rd.style.display='none';
-            map.setView([m.lat,m.lon],15,{{animate:true}});
-            setTimeout(()=>startNav(idx),400);
-        }};
-        rd.appendChild(div);
-    }});
+    if(matches.length){{
+        rd.style.display='block';
+        matches.forEach(m=>{{
+            var idx=places.indexOf(m);
+            var div=document.createElement('div'); div.className='search-item';
+            div.innerHTML=`<b>${{m.name}}</b> <span style="font-size:0.72rem;opacity:0.65;">(${{m.type}})</span>`;
+            div.onclick=function(){{ document.getElementById('poi-search').value=''; rd.style.display='none'; map.setView([m.lat,m.lon],14,{{animate:true}}); startNav(idx); }};
+            rd.appendChild(div);
+        }});
+    }} else {{ rd.style.display='none'; }}
 }};
 
-/* ── NAV STATE ── */
+/* ── FULLSCREEN (iframe-only, no parent DOM touch) ── */
+var isFS=false;
+window.toggleFS=function(){{
+    isFS=!isFS;
+    document.body.classList.toggle('fs',isFS);
+    document.getElementById('fs-expand').style.display=isFS?'none':'block';
+    document.getElementById('fs-shrink').style.display=isFS?'block':'none';
+    document.getElementById('fs-lbl').innerText=isFS?'Exit Full':'Full Screen';
+    setTimeout(()=>map.invalidateSize(),60);
+}};
+
 var watchId=null,userMarker=null,routeLine=null,targetMarker=null,currentTarget=null;
-var isNavigating=false,mapLocked=true,lastLat=null,lastLon=null,currentHeading=0;
+var isNavigating=false,mapLocked=true,lastLat=null,lastLon=null,currentHeading=0,lockedScrollY=0;
 
-map.on('dragstart',()=>{{
-    if(isNavigating){{ mapLocked=false; document.getElementById('recenter-btn').style.display='flex'; }}
-}});
-window.recenterMap=function(){{
-    mapLocked=true; document.getElementById('recenter-btn').style.display='none';
-    if(lastLat!=null) map.setView([lastLat,lastLon],15,{{animate:true}});
-}};
+function executeScreenLock(){{
+    try{{
+        let iframe=window.frameElement;
+        if(iframe) iframe.scrollIntoView({{behavior:'auto',block:'start'}});
+        setTimeout(()=>{{
+            let sy=window.parent.scrollY||0; lockedScrollY=sy;
+            let ps=window.parent.document.getElementById('nav-lock-style');
+            if(!ps){{ ps=window.parent.document.createElement('style'); ps.id='nav-lock-style'; window.parent.document.head.appendChild(ps); }}
+            ps.innerHTML=`header[data-testid="stHeader"]{{display:none!important;}}.stApp,[data-testid="stAppViewContainer"]{{overflow:hidden!important;position:fixed!important;width:100vw!important;top:-${{sy}}px!important;touch-action:none!important;}}`;
+        }},50);
+    }}catch(e){{ console.warn('Lock bypassed'); }}
+}}
+function executeScreenUnlock(){{
+    try{{ let ps=window.parent.document.getElementById('nav-lock-style'); if(ps) ps.innerHTML=''; window.parent.scrollTo(0,lockedScrollY); }}catch(e){{}}
+}}
+map.on('dragstart',function(){{ if(isNavigating){{ mapLocked=false; document.getElementById('recenter-btn').style.display='flex'; }} }});
+window.recenterMap=function(){{ mapLocked=true; document.getElementById('recenter-btn').style.display='none'; if(lastLat!=null) map.setView([lastLat,lastLon],15,{{animate:true}}); }};
 
 function handleOrientation(e){{
     if(!isNavigating) return;
-    var h=e.webkitCompassHeading?e.webkitCompassHeading:(e.alpha!=null?360-e.alpha:0);
+    let h=e.webkitCompassHeading?e.webkitCompassHeading:(e.alpha!=null?360-e.alpha:0);
     currentHeading=h;
-    var arr=document.getElementById('map-nav-arrow');
+    let arr=document.getElementById('map-nav-arrow');
     if(arr) arr.style.transform=`rotate(${{h}}deg)`;
 }}
-
 function getDistance(lat1,lon1,lat2,lon2){{
-    const R=isMetric?6371:3958.8;
-    const dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+    const R=isMetric?6371:3958.8,dLat=(lat2-lat1)*Math.PI/180,dLon=(lon2-lon1)*Math.PI/180;
     const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
     return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
 }}
 
 window.startNav=function(index){{
-    currentTarget=places[index]; map.closePopup();
-    isNavigating=true; mapLocked=true;
-    markersLayer.clearLayers();
-
-    // Auto enter fullscreen on mobile when nav starts
-    if(!isFullscreen && window.innerWidth<=768) toggleFullscreen();
-
+    currentTarget=places[index]; map.closePopup(); isNavigating=true; mapLocked=true;
+    markersLayer.clearLayers(); executeScreenLock();
     document.getElementById('nav-dashboard').classList.add('active');
     document.getElementById('search-container').style.display='none';
     document.getElementById('filter-panel').style.display='none';
     document.getElementById('recenter-btn').style.display='none';
+    document.getElementById('fullscreen-btn').style.display='none';
     document.getElementById('nav-title').innerText='→ '+currentTarget.name;
     document.getElementById('lbl-speed').innerText=isMetric?'km/h':'mph';
     document.getElementById('lbl-dist').innerText=isMetric?'km':'miles';
-
     if(targetMarker) map.removeLayer(targetMarker);
     targetMarker=L.marker([currentTarget.lat,currentTarget.lon],{{icon:targetIcon}}).addTo(map);
-
     if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){{
-        DeviceOrientationEvent.requestPermission()
-            .then(s=>{{ if(s==='granted') window.addEventListener('deviceorientation',handleOrientation,true); }})
-            .catch(()=>{{}});
+        DeviceOrientationEvent.requestPermission().then(s=>{{ if(s==='granted') window.addEventListener('deviceorientation',handleOrientation,true); }}).catch(console.error);
     }} else {{
         window.addEventListener('deviceorientationabsolute',handleOrientation,true);
         window.addEventListener('deviceorientation',handleOrientation,true);
     }}
-    if(navigator.geolocation)
-        watchId=navigator.geolocation.watchPosition(updateNav,handleGpsError,{{enableHighAccuracy:true,maximumAge:1000,timeout:8000}});
+    if(navigator.geolocation) watchId=navigator.geolocation.watchPosition(updateNav,handleError,{{enableHighAccuracy:true,maximumAge:1000,timeout:5000}});
 }};
 
 window.stopNav=function(){{
@@ -1713,61 +1608,45 @@ window.stopNav=function(){{
     if(watchId) navigator.geolocation.clearWatch(watchId);
     window.removeEventListener('deviceorientation',handleOrientation,true);
     window.removeEventListener('deviceorientationabsolute',handleOrientation,true);
-
-    // Exit fullscreen when nav stops
-    if(isFullscreen) toggleFullscreen();
-
-    renderMarkers();
+    executeScreenUnlock(); renderMarkers();
     document.getElementById('nav-dashboard').classList.remove('active');
     document.getElementById('search-container').style.display='block';
     document.getElementById('filter-panel').style.display='block';
     document.getElementById('recenter-btn').style.display='none';
-    if(routeLine){{ map.removeLayer(routeLine); routeLine=null; }}
-    if(targetMarker){{ map.removeLayer(targetMarker); targetMarker=null; }}
-    if(userMarker){{ map.removeLayer(userMarker); userMarker=null; }}
-    map.setView([34.20,-83.97],11,{{animate:true}});
+    document.getElementById('fullscreen-btn').style.display='flex';
+    if(routeLine) map.removeLayer(routeLine);
+    if(targetMarker) map.removeLayer(targetMarker);
+    if(userMarker) map.removeLayer(userMarker);
+    routeLine=null; targetMarker=null; userMarker=null;
+    map.setView([34.20,-83.97],11);
 }};
 
 function updateNav(pos){{
     if(!isNavigating||!currentTarget) return;
     lastLat=pos.coords.latitude; lastLon=pos.coords.longitude;
     var uLL=[lastLat,lastLon], tLL=[currentTarget.lat,currentTarget.lon];
-
     if(!userMarker){{
         var arrowHtml=`<div id="map-nav-arrow" class="nav-arrow-marker" style="transform:rotate(${{currentHeading}}deg);">
-            <svg viewBox="0 0 24 24" width="48" height="48" style="filter:drop-shadow(0 4px 8px rgba(0,0,0,0.6));">
-                <path d="M12 2L22 22L12 18L2 22L12 2Z" fill="#3498db" stroke="#fff" stroke-width="1.5"/>
+            <svg viewBox="0 0 24 24" width="44" height="44" style="filter:drop-shadow(0 4px 6px rgba(0,0,0,0.6));">
+                <path d="M12 2L22 22L12 18L2 22L12 2Z" fill="#3498db" stroke="#fff" stroke-width="2"/>
             </svg></div>`;
-        userMarker=L.marker(uLL,{{
-            icon:L.divIcon({{className:'',html:arrowHtml,iconSize:[48,48],iconAnchor:[24,24]}}),
-            zIndexOffset:1000
-        }}).addTo(map);
+        userMarker=L.marker(uLL,{{icon:L.divIcon({{className:'',html:arrowHtml,iconSize:[44,44],iconAnchor:[22,22]}}),zIndexOffset:1000}}).addTo(map);
     }} else {{ userMarker.setLatLng(uLL); }}
-
-    if(mapLocked) map.setView(uLL,16,{{animate:true}});
-
-    if(!routeLine) routeLine=L.polyline([uLL,tLL],{{color:'#3498db',weight:5,dashArray:'10,8',opacity:0.85}}).addTo(map);
-    else routeLine.setLatLngs([uLL,tLL]);
-
-    var dist=getDistance(lastLat,lastLon,currentTarget.lat,currentTarget.lon);
+    if(mapLocked) map.setView(uLL,15,{{animate:true}});
+    if(!routeLine){{ routeLine=L.polyline([uLL,tLL],{{color:'#3498db',weight:5,dashArray:'10,10'}}).addTo(map); }}
+    else {{ routeLine.setLatLngs([uLL,tLL]); }}
+    const dist=getDistance(lastLat,lastLon,currentTarget.lat,currentTarget.lon);
     document.getElementById('gps-dist').innerText=dist.toFixed(2);
-
-    var spd=0;
-    if(pos.coords.speed!=null){{
-        spd=isMetric?(pos.coords.speed*3.6):(pos.coords.speed*2.23694);
-        document.getElementById('gps-speed').innerText=spd.toFixed(1);
-    }} else {{ document.getElementById('gps-speed').innerText='0.0'; }}
-
-    document.getElementById('gps-eta').innerText=spd>1?Math.round((dist/spd)*60):'--';
+    let spd=0;
+    if(pos.coords.speed!=null){{ spd=isMetric?(pos.coords.speed*3.6):(pos.coords.speed*2.23694); document.getElementById('gps-speed').innerText=spd.toFixed(1); }}
+    else{{ document.getElementById('gps-speed').innerText='0.0'; }}
+    if(spd>2){{ document.getElementById('gps-eta').innerText=Math.round((dist/spd)*60); }}
+    else{{ document.getElementById('gps-eta').innerText='--'; }}
 }}
-
-function handleGpsError(e){{
-    console.warn('GPS error:',e.message);
-    document.getElementById('gps-eta').innerText='GPS?';
-}}
+function handleError(e){{ console.warn(e); document.getElementById('gps-eta').innerText='Err'; }}
 </script></body></html>
 """
-st.components.v1.html(nav_html, height=640, scrolling=False)
+st.components.v1.html(nav_html, height=630, scrolling=False)
 
 # ===================================================
 # UTILITIES
