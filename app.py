@@ -526,7 +526,7 @@ st.markdown(f"""
     .stApp {{ background-color: {theme['bg']} !important; font-family: 'Barlow', sans-serif !important; }}
     h3, div[data-testid="stWidgetLabel"] p, p {{ color: {theme['text']} !important; font-weight: 600; font-family: 'Barlow', sans-serif !important; }}
 
-    .main-title {{ color: {theme['text']} !important; font-family: 'Barlow Condensed', sans-serif !important; font-weight: 900; font-size: clamp(1.6rem, 5vw, 2.4rem); white-space: nowrap; margin-bottom: 0px; margin-top: 15px; letter-spacing: -0.5px; }}
+    .main-title {{ color: {theme['text']} !important; font-family: 'Barlow Condensed', sans-serif !important; font-weight: 900; font-size: clamp(1.5rem, 6vw, 2.4rem); white-space: nowrap; margin-bottom: 0px; margin-top: 15px; letter-spacing: -0.5px; }}
     .section-header {{ font-family: 'Barlow Condensed', sans-serif !important; font-weight: 800; font-size: 1.3rem; color: {theme['text']} !important; margin: 20px 0 10px 0; letter-spacing: 0.5px; text-transform: uppercase; }}
 
     div[data-testid="stToggle"] {{ background-color: {theme['card_bg']}; padding: 6px 12px; border-radius: 20px; border: 1px solid {theme['border']}; margin-bottom: 5px; }}
@@ -589,7 +589,7 @@ st.markdown(f"""
 
     /* ---- MOBILE ---- */
     @media (max-width: 640px) {{
-        .main-title {{ text-align: center; margin-bottom: 8px; font-size: 1.55rem !important; white-space: normal !important; }}
+        .main-title {{ text-align: center; margin-bottom: 8px; font-size: clamp(1.2rem, 7vw, 1.6rem) !important; white-space: nowrap !important; }}
         .metrics-grid {{ grid-template-columns: 1fr 1fr; gap: 8px; }}
         .metrics-grid .metric-card:nth-child(3) {{ grid-column: span 2; }}
         .metric-value {{ font-size: 1.65rem !important; }}
@@ -607,9 +607,9 @@ st.markdown(f"""
     }}
 
     @media (max-width: 380px) {{
+        .main-title {{ font-size: clamp(1.1rem, 7vw, 1.4rem) !important; }}
         .metric-value {{ font-size: 1.4rem !important; }}
         .info-pill {{ min-width: 90px; font-size: 0.7rem; }}
-        .main-title {{ font-size: 1.3rem !important; }}
     }}
     </style>
 """, unsafe_allow_html=True)
@@ -732,11 +732,11 @@ for sn, sv in wt_data["sources"].items():
     else:
         dsv = str(sv) + unit_temp
     near = wt_data["median"] != "N/A" and abs(sv - float(wt_data["median"])) <= 0.5
-    check = '<span class="wt-check">median</span>' if near else ""
+    check = '<span class="src-check">median</span>' if near else ""
     _src_rows_html += (
-        f'<div class="wt-source-row">'
-        f'<div class="wt-source-name">{ico} {sn}{check}</div>'
-        f'<div class="wt-source-val">{dsv}</div>'
+        f'<div class="src-row">'
+        f'<div class="src-name">{ico} {sn}{check}</div>'
+        f'<div class="src-val">{dsv}</div>'
         f'</div>'
     )
 if not _src_rows_html:
@@ -799,201 +799,132 @@ wt_chart_svg = build_wt_chart_svg(wt_history, st.session_state.is_metric, unit_t
 wt_modal_html = f"""
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap');
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ background: transparent; font-family: 'Barlow', sans-serif; }}
 
-  .wt-card {{
-    background:{theme['card_bg']}; border:1px solid {theme['border']}; border-radius:16px;
-    padding:18px 14px; box-shadow:0 2px 12px rgba(0,0,0,0.07); text-align:center;
-    display:flex; flex-direction:column; justify-content:center; cursor:pointer;
-    transition:border-color 0.25s, box-shadow 0.25s, transform 0.15s;
-    font-family:'Barlow',sans-serif;
+  .cards-grid {{
+    display: grid; grid-template-columns: repeat(3, 1fr);
+    gap: 12px; margin-bottom: 4px;
   }}
-  .wt-card:hover {{
-    border-color:#f39c12; box-shadow:0 4px 20px rgba(243,156,18,0.25); transform:translateY(-1px);
+  .card {{
+    background: {theme['card_bg']}; border: 1px solid {theme['border']};
+    border-radius: 16px; padding: 18px 14px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+    text-align: center; display: flex; flex-direction: column;
+    justify-content: center; min-height: 130px;
   }}
-  .wt-card:active {{ transform:translateY(0); }}
-  .wt-tap-hint {{
-    font-size:0.58rem; opacity:0.4; margin-top:4px; font-weight:700;
-    letter-spacing:0.8px; text-transform:uppercase; color:{theme['text']};
+  .card-label {{
+    color: {theme['sub_text']}; font-family: 'Barlow Condensed', sans-serif;
+    font-size: 0.7rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1.2px; margin-bottom: 6px;
   }}
+  .card-value {{
+    font-family: 'Barlow Condensed', sans-serif; font-size: 2rem;
+    font-weight: 900; line-height: 1.1; color: {theme['text']};
+  }}
+  .card-sub {{
+    font-size: 0.72rem; font-weight: 500; margin-top: 5px;
+    color: {theme['sub_text']}; line-height: 1.45;
+  }}
+  .card-tiny {{ font-size: 0.6rem; opacity: 0.4; display: inline-block; margin-top: 3px; }}
+  .card-wt {{ cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s; }}
+  .card-wt:hover {{ border-color: #f39c12; box-shadow: 0 4px 18px rgba(243,156,18,0.2); transform: translateY(-1px); }}
+  .card-wt:active {{ transform: translateY(0); }}
+  .tap-hint {{ font-size: 0.58rem; opacity: 0.35; margin-top: 5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: {theme['text']}; }}
 
-  /* ---- OVERLAY ---- */
-  .wt-overlay {{
-    display:none; position:fixed; inset:0;
-    background:rgba(0,0,0,0.72);
-    backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
-    z-index:99999; align-items:center; justify-content:center; padding:16px;
-    animation:fadeIn 0.18s ease;
-  }}
-  @keyframes fadeIn {{ from{{opacity:0}} to{{opacity:1}} }}
-  .wt-overlay.open {{ display:flex; }}
+  .wt-overlay {{ display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); z-index: 99999; align-items: center; justify-content: center; padding: 12px; }}
+  .wt-overlay.open {{ display: flex; }}
 
-  /* ---- MODAL ---- */
   .wt-modal {{
-    background:{theme['card_bg']}; border:1px solid {theme['border']}; border-radius:24px;
-    width:100%; max-width:440px; max-height:88vh; overflow-y:auto;
-    box-shadow:0 32px 80px rgba(0,0,0,0.6);
-    animation:slideUp 0.22s cubic-bezier(0.34,1.56,0.64,1);
-    font-family:'Barlow',sans-serif;
+    background: {theme['card_bg']}; border: 1px solid {theme['border']};
+    border-radius: 22px; width: 100%; max-width: 500px; max-height: 92vh;
+    overflow-y: auto; box-shadow: 0 24px 80px rgba(0,0,0,0.65);
+    display: flex; flex-direction: column;
   }}
-  @keyframes slideUp {{ from{{transform:translateY(30px);opacity:0}} to{{transform:translateY(0);opacity:1}} }}
+  .modal-header {{
+    background: {'#252836' if st.session_state.dark_mode else '#f0f4f8'};
+    border-radius: 22px 22px 0 0; padding: 22px 22px 20px;
+    border-bottom: 1px solid {theme['border']}; flex-shrink: 0;
+  }}
+  .modal-topbar {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }}
+  .modal-eyebrow {{ font-family: 'Barlow Condensed', sans-serif; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: {theme['sub_text']}; }}
+  .modal-close {{
+    background: {'rgba(255,255,255,0.1)' if st.session_state.dark_mode else 'rgba(0,0,0,0.08)'};
+    border: 1px solid {theme['border']}; color: {theme['text']};
+    border-radius: 50%; width: 34px; height: 34px; cursor: pointer;
+    font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }}
+  .modal-big-temp {{ font-family: 'Barlow Condensed', sans-serif; font-size: 4.5rem; font-weight: 900; line-height: 1; letter-spacing: -1px; color: {temp_color}; }}
+  .modal-meta {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }}
+  .modal-badge {{ display: inline-flex; align-items: center; gap: 3px; padding: 4px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; border: 1px solid currentColor; opacity: 0.85; font-family: 'Barlow Condensed', sans-serif; }}
+  .modal-sources-count {{ font-size: 0.8rem; color: {theme['sub_text']}; font-weight: 500; }}
+  .modal-body {{ padding: 20px 22px 24px; }}
+  .section-lbl {{ font-family: 'Barlow Condensed', sans-serif; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: {theme['sub_text']}; margin: 18px 0 10px; }}
+  .section-lbl:first-child {{ margin-top: 0; }}
+  .src-row {{ display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: 11px; margin-bottom: 7px; background: {'rgba(255,255,255,0.04)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'}; border: 1px solid {theme['border']}; }}
+  .src-name {{ font-size: 0.85rem; font-weight: 600; color: {theme['sub_text']}; display: flex; align-items: center; gap: 7px; }}
+  .src-val {{ font-family: 'Barlow Condensed', sans-serif; font-size: 1.1rem; font-weight: 800; color: {theme['text']}; }}
+  .src-check {{ background: rgba(46,204,113,0.15); color: #2ecc71; border: 1px solid rgba(46,204,113,0.3); border-radius: 10px; font-size: 0.62rem; font-weight: 800; padding: 1px 7px; margin-left: 5px; }}
+  .chart-wrap {{ background: {'rgba(0,0,0,0.18)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'}; border: 1px solid {theme['border']}; border-radius: 12px; padding: 14px 12px 8px; }}
+  .modal-footer {{ text-align: center; font-size: 0.62rem; opacity: 0.3; margin-top: 18px; line-height: 1.6; font-weight: 500; }}
 
-  /* ---- MODAL HEADER ---- */
-  .wt-modal-header {{
-    background: linear-gradient(135deg, {theme['card_bg']}, {'#2a2d3e' if st.session_state.dark_mode else '#eef2f7'});
-    border-radius:24px 24px 0 0; padding:20px 20px 16px;
-    border-bottom:1px solid {theme['border']};
-  }}
-  .wt-modal-topbar {{
-    display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;
-  }}
-  .wt-modal-label {{
-    font-family:'Barlow Condensed',sans-serif; font-size:0.72rem; font-weight:700;
-    text-transform:uppercase; letter-spacing:1.5px; color:{theme['sub_text']};
-  }}
-  .wt-close {{
-    background:{'rgba(255,255,255,0.08)' if st.session_state.dark_mode else 'rgba(0,0,0,0.06)'};
-    border:1px solid {theme['border']}; color:{theme['text']};
-    border-radius:50%; width:32px; height:32px; cursor:pointer; font-size:0.9rem;
-    display:flex; align-items:center; justify-content:center; transition:all 0.2s;
-    font-family:sans-serif;
-  }}
-  .wt-close:hover {{
-    background:{'rgba(255,255,255,0.15)' if st.session_state.dark_mode else 'rgba(0,0,0,0.12)'};
-    transform:rotate(90deg);
-  }}
-
-  /* ---- BIG TEMP DISPLAY ---- */
-  .wt-hero {{ text-align:center; }}
-  .wt-hero-temp {{
-    font-family:'Barlow Condensed',sans-serif; font-size:4rem; font-weight:900;
-    color:{temp_color}; line-height:1; letter-spacing:-1px;
-  }}
-  .wt-hero-sub {{
-    font-size:0.82rem; color:{theme['sub_text']}; margin-top:6px;
-    display:flex; justify-content:center; align-items:center; gap:12px; flex-wrap:wrap;
-  }}
-  .wt-badge {{
-    display:inline-flex; align-items:center; gap:4px; padding:3px 10px;
-    border-radius:20px; font-size:0.72rem; font-weight:700;
-    border:1px solid currentColor; opacity:0.85;
-  }}
-
-  /* ---- MODAL BODY ---- */
-  .wt-modal-body {{ padding:18px 20px 22px; }}
-  .wt-section-label {{
-    font-family:'Barlow Condensed',sans-serif; font-size:0.68rem; font-weight:700;
-    text-transform:uppercase; letter-spacing:1.5px; color:{theme['sub_text']};
-    margin:18px 0 10px;
-  }}
-  .wt-section-label:first-child {{ margin-top:0; }}
-
-  /* ---- SOURCE ROWS ---- */
-  .wt-source-row {{
-    display:flex; justify-content:space-between; align-items:center;
-    padding:9px 12px; border-radius:10px; margin-bottom:6px;
-    background:{'rgba(255,255,255,0.03)' if st.session_state.dark_mode else 'rgba(0,0,0,0.03)'};
-    border:1px solid {theme['border']};
-  }}
-  .wt-source-name {{
-    font-size:0.82rem; font-weight:600; color:{theme['sub_text']}; display:flex; align-items:center; gap:6px;
-  }}
-  .wt-source-val {{
-    font-family:'Barlow Condensed',sans-serif; font-size:1.05rem; font-weight:800; color:{theme['text']};
-  }}
-  .wt-check {{
-    background:rgba(46,204,113,0.15); color:#2ecc71; border:1px solid rgba(46,204,113,0.3);
-    border-radius:12px; font-size:0.62rem; font-weight:800; padding:1px 6px; margin-left:4px;
-    letter-spacing:0.3px;
-  }}
-
-  /* ---- CHART ---- */
-  .wt-chart-wrap {{
-    background:{'rgba(0,0,0,0.2)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'};
-    border:1px solid {theme['border']}; border-radius:12px; padding:14px 12px 8px;
-  }}
-
-  /* ---- FOOTER ---- */
-  .wt-footer {{
-    text-align:center; font-size:0.62rem; opacity:0.3; margin-top:16px;
-    font-weight:500; line-height:1.5;
+  @media (max-width: 480px) {{
+    .cards-grid {{ grid-template-columns: 1fr 1fr; gap: 8px; }}
+    .cards-grid .card:nth-child(3) {{ grid-column: span 2; }}
+    .card {{ min-height: 110px; padding: 14px 12px; border-radius: 13px; }}
+    .card-value {{ font-size: 1.65rem; }}
+    .card-sub {{ font-size: 0.7rem; }}
+    .modal-big-temp {{ font-size: 3.5rem; }}
+    .modal-header {{ padding: 18px 18px 16px; }}
+    .modal-body {{ padding: 16px 18px 20px; }}
   }}
 </style>
 
-<!-- 3-col metrics grid including clickable water temp card -->
-<div style="display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:12px;">
-
-  <div style="background:{theme['card_bg']};border:1px solid {theme['border']};border-radius:16px;padding:18px 14px;box-shadow:0 2px 12px rgba(0,0,0,0.07);text-align:center;display:flex;flex-direction:column;justify-content:center;font-family:'Barlow',sans-serif;">
-    <div style="color:{theme['sub_text']};font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px;font-family:'Barlow Condensed',sans-serif;">Lake Level</div>
-    <div style="color:{theme['text']};font-size:2rem;font-weight:900;line-height:1.1;font-family:'Barlow Condensed',sans-serif;">{level_val}</div>
-    <div style="font-size:0.75rem;font-weight:500;margin-top:4px;color:{theme['sub_text']};line-height:1.4;">
-      {level_sub_html}<br>
-      <span style="font-size:0.62rem;opacity:0.4;display:inline-block;margin-top:4px;">Updated: {d['last_updated']}</span>
-    </div>
+<div class="cards-grid">
+  <div class="card">
+    <div class="card-label">Lake Level</div>
+    <div class="card-value">{level_val}</div>
+    <div class="card-sub">{level_sub_html}<br><span class="card-tiny">Updated: {d['last_updated']}</span></div>
   </div>
-
-  <div style="background:{theme['card_bg']};border:1px solid {theme['border']};border-radius:16px;padding:18px 14px;box-shadow:0 2px 12px rgba(0,0,0,0.07);text-align:center;display:flex;flex-direction:column;justify-content:center;font-family:'Barlow',sans-serif;">
-    <div style="color:{theme['sub_text']};font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px;font-family:'Barlow Condensed',sans-serif;">Air Temp</div>
-    <div style="color:{air_temp_color};font-size:2rem;font-weight:900;line-height:1.1;font-family:'Barlow Condensed',sans-serif;">{disp_air_temp}{unit_temp}</div>
-    <div style="font-size:0.75rem;font-weight:500;margin-top:4px;color:{theme['sub_text']};line-height:1.4;">
-      Flowery Branch<br>
-      <span style="font-size:0.62rem;opacity:0.4;display:inline-block;margin-top:4px;">Updated: {d['last_updated']}</span>
-    </div>
+  <div class="card">
+    <div class="card-label">Air Temp</div>
+    <div class="card-value" style="color:{air_temp_color};">{disp_air_temp}{unit_temp}</div>
+    <div class="card-sub">Flowery Branch<br><span class="card-tiny">Updated: {d['last_updated']}</span></div>
   </div>
-
-  <div class="wt-card" onclick="document.getElementById('wtOverlay').classList.add('open')">
-    <div style="color:{theme['sub_text']};font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:6px;font-family:'Barlow Condensed',sans-serif;">Water Temp</div>
-    <div style="color:{temp_color};font-size:2rem;font-weight:900;line-height:1.1;font-family:'Barlow Condensed',sans-serif;">{water_temp_display}</div>
-    <div style="font-size:0.75rem;font-weight:500;margin-top:4px;color:{theme['sub_text']};line-height:1.4;">
-      <span style="color:#74b9ff;">↓{disp_water_low}{unit_temp}</span> · <span style="color:#e74c3c;">↑{disp_water_high}{unit_temp}</span>
-      <br><span style="font-size:0.6rem;opacity:0.4;display:inline-block;margin-top:2px;">{wt_data['confidence']} · {len(wt_data['sources'])} sources</span>
-    </div>
-    <div class="wt-tap-hint">▼ tap for details</div>
+  <div class="card card-wt" onclick="document.getElementById('wtOverlay').classList.add('open')">
+    <div class="card-label">Water Temp</div>
+    <div class="card-value" style="color:{temp_color};">{water_temp_display}</div>
+    <div class="card-sub"><span style="color:#74b9ff;">↓{disp_water_low}{unit_temp}</span> · <span style="color:#e74c3c;">↑{disp_water_high}{unit_temp}</span><br><span class="card-tiny">{wt_data['confidence']} · {len(wt_data['sources'])} sources</span></div>
+    <div class="tap-hint">▼ tap for details</div>
   </div>
-
 </div>
 
-<!-- Modal -->
 <div id="wtOverlay" class="wt-overlay" onclick="if(event.target===this)this.classList.remove('open')">
   <div class="wt-modal">
-
-    <!-- Header -->
-    <div class="wt-modal-header">
-      <div class="wt-modal-topbar">
-        <div class="wt-modal-label">🌡️ Water Temperature</div>
-        <button class="wt-close" onclick="document.getElementById('wtOverlay').classList.remove('open')">✕</button>
+    <div class="modal-header">
+      <div class="modal-topbar">
+        <div class="modal-eyebrow">🌡️ Water Temperature</div>
+        <button class="modal-close" onclick="document.getElementById('wtOverlay').classList.remove('open')">✕</button>
       </div>
-      <div class="wt-hero">
-        <div class="wt-hero-temp">{water_temp_display}</div>
-        <div class="wt-hero-sub">
-          <span>median of {len(wt_data['sources'])} sources</span>
-          <span class="wt-badge" style="color:{conf_color};">● {wt_data['confidence']}</span>
-          <span class="wt-badge" style="color:#74b9ff;">↓ {disp_water_low}{unit_temp}</span>
-          <span class="wt-badge" style="color:#e74c3c;">↑ {disp_water_high}{unit_temp}</span>
-        </div>
+      <div class="modal-big-temp">{water_temp_display}</div>
+      <div class="modal-meta">
+        <span class="modal-sources-count">median of {len(wt_data['sources'])} sources</span>
+        <span class="modal-badge" style="color:{conf_color};">● {wt_data['confidence']}</span>
+        <span class="modal-badge" style="color:#74b9ff;">↓ {disp_water_low}{unit_temp}</span>
+        <span class="modal-badge" style="color:#e74c3c;">↑ {disp_water_high}{unit_temp}</span>
       </div>
     </div>
-
-    <!-- Body -->
-    <div class="wt-modal-body">
-
-      <div class="wt-section-label">Source Readings</div>
+    <div class="modal-body">
+      <div class="section-lbl">Source Readings</div>
       {_src_rows_html}
-
-      <div class="wt-section-label">24-Hour History</div>
-      <div class="wt-chart-wrap">
-        {wt_chart_svg}
-      </div>
-
-      <div class="wt-footer">
-        Refreshes every 5 min · USGS gauges 02334430, 02334480, 02334885, 02331000 · Omnia Fishing · Lake Monster<br>
-        ⚠ Surface temp varies by depth, cove, and time of day
-      </div>
-
+      <div class="section-lbl">24-Hour History (USGS Below Buford Dam)</div>
+      <div class="chart-wrap">{wt_chart_svg}</div>
+      <div class="modal-footer">Refreshes every 5 min · USGS 02334430, 02334480, 02334885, 02331000 · Omnia Fishing · Lake Monster<br>⚠ Surface temp varies by depth, cove &amp; time of day</div>
     </div>
   </div>
 </div>
 """
-st.components.v1.html(wt_modal_html, height=210, scrolling=False)
+st.components.v1.html(wt_modal_html, height=170, scrolling=False)
 
 
 # --- Info Pills ---
@@ -1396,10 +1327,15 @@ body {{ margin:0; padding:0; font-family:-apple-system,sans-serif; background:tr
 .search-item:last-child {{ border-bottom:none; }}
 .search-item:hover {{ background:rgba(52,152,219,0.15); }}
 
-#filter-panel {{ position:absolute; top:10px; right:10px; z-index:1000; background:{dash_bg}; backdrop-filter:blur(6px); color:{theme['text']}; padding:8px 12px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.25); border:1px solid {theme['border']}; font-size:0.88rem; font-weight:700; }}
-.filter-cb {{ margin-right:5px; transform:scale(1.15); cursor:pointer; accent-color:#3498db; }}
-.filter-row {{ margin-bottom:5px; display:flex; align-items:center; cursor:pointer; }}
-.filter-row:last-child {{ margin-bottom:0; }}
+#filter-panel {{
+    position:absolute; bottom:14px; right:14px; z-index:1000;
+    background:{dash_bg}; backdrop-filter:blur(6px); color:{theme['text']};
+    padding:8px 12px; border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.25);
+    border:1px solid {theme['border']}; font-size:0.82rem; font-weight:700;
+    display:flex; flex-direction:row; gap:10px; align-items:center;
+}}
+.filter-cb {{ margin-right:4px; transform:scale(1.15); cursor:pointer; accent-color:#3498db; }}
+.filter-row {{ margin-bottom:0; display:flex; align-items:center; cursor:pointer; white-space:nowrap; }}
 
 .map-marker {{ width:34px; height:34px; background:white; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 3px 8px rgba(0,0,0,0.4); font-size:18px; border:2.5px solid white; transition:transform 0.2s; }}
 .map-marker:hover {{ transform:scale(1.15); }}
@@ -1416,30 +1352,12 @@ body {{ margin:0; padding:0; font-family:-apple-system,sans-serif; background:tr
 .stop-btn {{ background:#e74c3c; color:white; border:none; padding:7px 14px; border-radius:16px; font-weight:700; cursor:pointer; font-size:0.8rem; }}
 .nav-arrow-marker {{ display:flex; align-items:center; justify-content:center; transition:transform 0.1s linear; transform-origin:center; }}
 
-#recenter-btn {{ display:none; position:absolute; bottom:130px; right:14px; z-index:1000; background:{theme['card_bg']}; color:#3498db; border:2px solid #3498db; width:44px; height:44px; border-radius:50%; padding:0; box-shadow:0 4px 12px rgba(0,0,0,0.3); cursor:pointer; align-items:center; justify-content:center; transition:all 0.2s; }}
+#recenter-btn {{ display:none; position:absolute; bottom:60px; right:14px; z-index:1000; background:{theme['card_bg']}; color:#3498db; border:2px solid #3498db; width:44px; height:44px; border-radius:50%; padding:0; box-shadow:0 4px 12px rgba(0,0,0,0.3); cursor:pointer; align-items:center; justify-content:center; transition:all 0.2s; }}
 #recenter-btn:active {{ background:#3498db; color:white; }}
 
-#fullscreen-btn {{
-    position:absolute; bottom:14px; left:14px; z-index:1002;
-    background:{theme['card_bg']}; color:{theme['text']};
-    border:1px solid {theme['border']}; border-radius:10px;
-    padding:8px 12px; cursor:pointer; font-size:0.75rem; font-weight:700;
-    display:flex; align-items:center; gap:6px;
-    box-shadow:0 2px 8px rgba(0,0,0,0.25); font-family:'Barlow Condensed',sans-serif; letter-spacing:0.5px;
-}}
-#fullscreen-btn:active {{ opacity:0.8; }}
-
-/* Fullscreen mode — expands the iframe's inner content only */
-body.fs #map-container {{
-    position:fixed; inset:0; height:100vh; width:100vw;
-    border-radius:0; border:none; z-index:99999;
-}}
-body.fs {{ overflow:hidden; }}
-
 @media (max-width:600px) {{
-    #search-container {{ width:88%; max-width:none; left:6%; }}
-    #filter-panel {{ top:72px; right:6%; display:flex; gap:8px; padding:7px 10px; }}
-    .filter-row {{ margin-bottom:0; font-size:0.8rem; }}
+    #search-container {{ width:90%; max-width:none; left:5%; }}
+    #filter-panel {{ bottom:10px; right:5%; gap:6px; padding:6px 10px; font-size:0.75rem; }}
     #map-container {{ height:500px; }}
 }}
 </style></head><body>
@@ -1449,20 +1367,15 @@ body.fs {{ overflow:hidden; }}
         <div id="search-results"></div>
     </div>
     <div id="filter-panel">
-        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Dining" checked onchange="renderMarkers()"> 🍔 Dining</label>
-        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Fuel" checked onchange="renderMarkers()"> ⛽ Fuel</label>
-        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Marina" checked onchange="renderMarkers()"> ⚓ Marina</label>
-        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Launch" checked onchange="renderMarkers()"> 🚤 Launch</label>
+        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Dining" checked onchange="renderMarkers()"> 🍔</label>
+        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Fuel" onchange="renderMarkers()"> ⛽</label>
+        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Marina" onchange="renderMarkers()"> ⚓</label>
+        <label class="filter-row"><input type="checkbox" class="filter-cb" value="Launch" onchange="renderMarkers()"> 🚤</label>
     </div>
     <button id="recenter-btn" onclick="recenterMap()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/>
         </svg>
-    </button>
-    <button id="fullscreen-btn" onclick="toggleFS()">
-        <svg id="fs-expand" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-        <svg id="fs-shrink" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 0 2-2h3M3 16h3a2 2 0 0 0 2 2v3"/></svg>
-        <span id="fs-lbl">Full Screen</span>
     </button>
     <div id="nav-dashboard">
         <div style="font-size:1.05rem; font-weight:800; display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; font-family:'Barlow Condensed',sans-serif;">
@@ -1536,16 +1449,6 @@ window.filterSearch=function(){{
     }} else {{ rd.style.display='none'; }}
 }};
 
-/* ── FULLSCREEN (iframe-only, no parent DOM touch) ── */
-var isFS=false;
-window.toggleFS=function(){{
-    isFS=!isFS;
-    document.body.classList.toggle('fs',isFS);
-    document.getElementById('fs-expand').style.display=isFS?'none':'block';
-    document.getElementById('fs-shrink').style.display=isFS?'block':'none';
-    document.getElementById('fs-lbl').innerText=isFS?'Exit Full':'Full Screen';
-    setTimeout(()=>map.invalidateSize(),60);
-}};
 
 var watchId=null,userMarker=null,routeLine=null,targetMarker=null,currentTarget=null;
 var isNavigating=false,mapLocked=true,lastLat=null,lastLon=null,currentHeading=0,lockedScrollY=0;
@@ -1588,7 +1491,6 @@ window.startNav=function(index){{
     document.getElementById('search-container').style.display='none';
     document.getElementById('filter-panel').style.display='none';
     document.getElementById('recenter-btn').style.display='none';
-    document.getElementById('fullscreen-btn').style.display='none';
     document.getElementById('nav-title').innerText='→ '+currentTarget.name;
     document.getElementById('lbl-speed').innerText=isMetric?'km/h':'mph';
     document.getElementById('lbl-dist').innerText=isMetric?'km':'miles';
@@ -1611,9 +1513,8 @@ window.stopNav=function(){{
     executeScreenUnlock(); renderMarkers();
     document.getElementById('nav-dashboard').classList.remove('active');
     document.getElementById('search-container').style.display='block';
-    document.getElementById('filter-panel').style.display='block';
+    document.getElementById('filter-panel').style.display='flex';
     document.getElementById('recenter-btn').style.display='none';
-    document.getElementById('fullscreen-btn').style.display='flex';
     if(routeLine) map.removeLayer(routeLine);
     if(targetMarker) map.removeLayer(targetMarker);
     if(userMarker) map.removeLayer(userMarker);
