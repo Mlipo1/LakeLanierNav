@@ -97,26 +97,35 @@ def fetch_data():
 @st.cache_data(ttl=300)
 def fetch_water_temps():
     """
-    Pulls water temperature from multiple independent sources for Lake Lanier.
-    Returns a dict with per-source readings and computed median/high/low.
+    Pulls water temperature from multiple sources for Lake Lanier.
     Sources:
-      1. USGS Buford Dam gauge (02334400, param 00010) — most authoritative
-      2. USGS Flowery Branch gauge (02334480, param 00010) — downstream/cove reading
-      3. Open-Meteo Lake Surface Temp (ERA5 reanalysis, lat/lon for Lanier centroid)
+      1. USGS Chattahoochee R. below Buford Dam (02334430) - param 00010 - outflow temp sensor, most reliable
+      2. USGS Flowery Branch gauge (02334480) - param 00010
+      3. Omnia Fishing - scrapes their Lake Lanier current conditions page
       4. Lake Monster scrape (fallback HTML)
+
+    NOTE: Open-Meteo ERA5 lake surface temp has been removed - it lags reality by
+    weeks and consistently reads 10-15°F too warm for Lake Lanier.
+    USGS 02334400 (Buford Dam reservoir gauge) does NOT have a 00010 water temp
+    sensor - it only reports elevation/level data.
     """
     import statistics
 
-    readings = {}   # {"Source Name": float_temp_F}
+    readings = {}
 
-    # ---- Source 1: USGS Buford Dam ----
+    # ---- Source 1: USGS Chattahoochee R. Below Buford Dam (02334430) ----
+    # This gauge is ON the outflow of Buford Dam — measures actual released water temp
     try:
-        url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400&parameterCd=00010"
+        url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334430&parameterCd=00010"
         res = requests.get(url, timeout=6).json()
         ts = res['value']['timeSeries']
         if ts:
-            val_c = float(ts[0]['values'][0]['value'][0]['value'])
-            readings["USGS Buford Dam"] = round(val_c * 9 / 5 + 32, 1)
+            val_raw = ts[0]['values'][0]['value'][0]['value']
+            val_c = float(val_raw)
+            # Sanity check: water temp in lake should be 35-85°F year-round
+            val_f = round(val_c * 9 / 5 + 32, 1)
+            if 35 <= val_f <= 85:
+                readings["USGS Below Buford Dam"] = val_f
     except Exception:
         pass
 
@@ -127,29 +136,23 @@ def fetch_water_temps():
         ts = res['value']['timeSeries']
         if ts:
             val_c = float(ts[0]['values'][0]['value'][0]['value'])
-            readings["USGS Flowery Branch"] = round(val_c * 9 / 5 + 32, 1)
+            val_f = round(val_c * 9 / 5 + 32, 1)
+            if 35 <= val_f <= 85:
+                readings["USGS Flowery Branch"] = val_f
     except Exception:
         pass
 
-    # ---- Source 3: Open-Meteo (ERA5 lake surface temp at Lanier centroid) ----
-    # Parameter: lake_surface_water_temperature returned in °C
+    # ---- Source 3: Omnia Fishing scrape ----
     try:
-        url = (
-            "https://api.open-meteo.com/v1/forecast"
-            "?latitude=34.18&longitude=-83.98"
-            "&hourly=lake_surface_water_temperature"
-            "&temperature_unit=celsius"
-            "&forecast_days=1"
-            "&timezone=America%2FNew_York"
-        )
-        res = requests.get(url, timeout=6).json()
-        hourly = res.get("hourly", {})
-        temps_c = hourly.get("lake_surface_water_temperature", [])
-        # Get the most recent non-null reading
-        valid = [t for t in temps_c if t is not None]
-        if valid:
-            val_c = valid[-1]
-            readings["Open-Meteo (ERA5)"] = round(val_c * 9 / 5 + 32, 1)
+        url = "https://www.omniafishing.com/w/lake-lanier-fishing-reports/current-conditions"
+        headers = {'User-Agent': 'Mozilla/5.0 (compatible; LanierNav/1.0)'}
+        res = requests.get(url, headers=headers, timeout=7)
+        # Look for temperature pattern like "47º" or "47°F" or "47 F"
+        match = re.search(r'(\d{2,3})\s*[º°]\s*(?:F(?:ahrenheit)?)?', res.text)
+        if match:
+            val = int(match.group(1))
+            if 35 <= val <= 85:
+                readings["Omnia Fishing"] = float(val)
     except Exception:
         pass
 
@@ -161,7 +164,7 @@ def fetch_water_temps():
         match = re.search(r'(\d{2,3})(?:\s*°|\s*&deg;|\s*deg)?\s*F', lm_res.text, re.IGNORECASE)
         if match:
             scraped = int(match.group(1))
-            if 35 <= scraped <= 95:
+            if 35 <= scraped <= 85:
                 readings["Lake Monster"] = float(scraped)
     except Exception:
         pass
@@ -182,12 +185,7 @@ def fetch_water_temps():
     low_val = round(min(vals), 1)
 
     n = len(vals)
-    if n >= 3:
-        confidence = "High"
-    elif n == 2:
-        confidence = "Medium"
-    else:
-        confidence = "Low (1 source)"
+    confidence = "High" if n >= 3 else "Medium" if n == 2 else "Low (1 source)"
 
     return {
         "sources": readings,
@@ -200,12 +198,12 @@ def fetch_water_temps():
 
 @st.cache_data(ttl=300)
 def fetch_water_temp_history():
-    """Fetch 24h water temperature history from USGS Buford Dam (most reliable source)."""
+    """Fetch 24h water temperature history from USGS Below Buford Dam (02334430) — has actual temp sensor."""
     try:
         end = datetime.utcnow()
         start = end - timedelta(hours=24)
         url = (
-            f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400"
+            f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334430"
             f"&parameterCd=00010"
             f"&startDT={start.isoformat()}&endDT={end.isoformat()}"
         )
@@ -705,7 +703,7 @@ if d['air_temp'] != "N/A":
 
 # Build source rows for popup
 _src_rows_html = ""
-src_icon_map = {"USGS Buford Dam": "🏛️", "USGS Flowery Branch": "📍", "Open-Meteo (ERA5)": "🛰️", "Lake Monster": "🐊"}
+src_icon_map = {"USGS Below Buford Dam": "🏛️", "USGS Flowery Branch": "📍", "Omnia Fishing": "🎣", "Lake Monster": "🐊"}
 for sn, sv in wt_data["sources"].items():
     ico = src_icon_map.get(sn, "🌡️")
     if st.session_state.is_metric:
@@ -876,7 +874,7 @@ wt_modal_html = f"""
     </div>
 
     <div style="font-size:0.65rem;opacity:0.35;text-align:center;margin-top:12px;">
-      Data refreshes every 5 minutes · USGS, Open-Meteo, Lake Monster
+      Data refreshes every 5 minutes · USGS gauges 02334430 & 02334480, Omnia Fishing, Lake Monster
     </div>
   </div>
 </div>
