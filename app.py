@@ -467,7 +467,7 @@ st.markdown(f"""
     .alert-content {{ padding: 0 16px 14px 16px; font-weight: 500; font-size: 0.92rem; line-height: 1.5; }}
 
     /* ---- METRIC CARDS ---- */
-    .metrics-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px; }}
+    .metrics-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }}
     .metric-card {{ background: {theme['card_bg']}; border-radius: 16px; padding: 18px 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); text-align: center; border: 1px solid {theme['border']}; display: flex; flex-direction: column; justify-content: center; transition: background 0.5s ease; }}
     .metric-title {{ color: {theme['sub_text']}; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 6px; font-family: 'Barlow Condensed', sans-serif; }}
     .metric-value {{ color: {theme['text']}; font-size: 2rem; font-weight: 900; line-height: 1.1; font-family: 'Barlow Condensed', sans-serif; }}
@@ -519,6 +519,7 @@ st.markdown(f"""
     @media (max-width: 640px) {{
         .main-title {{ text-align: center; margin-bottom: 8px; font-size: 1.55rem !important; }}
         .metrics-grid {{ grid-template-columns: 1fr 1fr; gap: 8px; }}
+        .metrics-grid .metric-card:nth-child(3) {{ grid-column: span 2; }}
         .metric-value {{ font-size: 1.55rem !important; }}
         .metric-card {{ padding: 14px 10px !important; border-radius: 12px !important; }}
         .info-pill {{ font-size: 0.75rem; min-width: 100px; min-height: 46px; padding: 5px 8px; }}
@@ -650,6 +651,26 @@ if d['air_temp'] != "N/A":
 # Water temp source badge
 water_temp_source = "USGS Buford Dam" if d['water_temp'] != "N/A" else "Unavailable"
 
+# Build source rows HTML as a plain string (outside f-string to avoid escaping issues)
+_src_parts = []
+for src_name, src_val in wt_data["sources"].items():
+    icon = {"USGS Buford Dam": "🏛️", "USGS Flowery Branch": "📍", "Open-Meteo (ERA5)": "🛰️", "Lake Monster": "🐊"}.get(src_name, "🌡️")
+    if st.session_state.is_metric:
+        disp_sv = str(round((src_val - 32) * 5 / 9, 1)) + unit_temp
+    else:
+        disp_sv = str(src_val) + unit_temp
+    is_near_median = wt_data["median"] != "N/A" and abs(src_val - float(wt_data["median"])) <= 0.5
+    badge = " ✓" if is_near_median else ""
+    _src_parts.append(
+        '<div style="display:flex;justify-content:space-between;align-items:center;'
+        'padding:5px 0;border-bottom:1px solid ' + theme['border'] + ';font-size:0.75rem;">'
+        '<span style="color:' + theme['sub_text'] + ';font-weight:600;">' + icon + ' ' + src_name + badge + '</span>'
+        '<span style="color:' + theme['text'] + ';font-weight:800;font-family:\'Barlow Condensed\',sans-serif;font-size:0.9rem;">' + disp_sv + '</span>'
+        '</div>'
+    )
+wt_source_rows_html = "".join(_src_parts) if _src_parts else '<div style="font-size:0.8rem;text-align:center;padding:8px;opacity:0.5;">No sources available</div>'
+
+# 3-column top metrics grid (restored)
 st.markdown(f"""
 <div class="metrics-grid">
     <div class="metric-card">
@@ -666,29 +687,31 @@ st.markdown(f"""
             <span style="font-size:0.62rem; opacity:0.45; display:inline-block; margin-top:4px;">Updated: {d['last_updated']}</span>
         </div>
     </div>
-</div>
-
-<div class="metric-card" style="margin-bottom:12px; padding:16px 18px; text-align:left;">
-    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
-        <div>
-            <div class="metric-title" style="text-align:left; margin-bottom:4px;">🌡️ Water Temperature — Multi-Source</div>
-            <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
-                <span style="font-size:2.4rem; font-weight:900; color:{temp_color}; font-family:'Barlow Condensed',sans-serif; line-height:1;">{water_temp_display}</span>
-                <span style="font-size:0.8rem; color:{theme['sub_text']};">median</span>
-                <span style="font-size:0.85rem; font-weight:700;">{spread_html}</span>
-            </div>
+    <div class="metric-card">
+        <div class="metric-title">Water Temp</div>
+        <div class="metric-value" style="color:{temp_color};">{water_temp_display}</div>
+        <div class="metric-sub">
+            median &nbsp;
+            <span style="color:#74b9ff;">↓{disp_water_low}{unit_temp}</span>–<span style="color:#e74c3c;">↑{disp_water_high}{unit_temp}</span>
+            <br><span style="font-size:0.62rem; opacity:0.45; display:inline-block; margin-top:2px;">Updated: {d['last_updated']}</span>
         </div>
-        <div style="text-align:right;">
-            <div style="font-size:0.68rem; text-transform:uppercase; letter-spacing:1px; color:{theme['sub_text']}; font-weight:700; margin-bottom:3px;">Confidence</div>
-            <div style="font-size:0.9rem; font-weight:800; color:{conf_color}; font-family:'Barlow Condensed',sans-serif;">● {wt_data['confidence']}</div>
-            <div style="font-size:0.62rem; opacity:0.45; margin-top:2px;">{len(wt_data['sources'])} of 4 sources online</div>
-        </div>
-    </div>
-    <div style="border-top:1px solid {theme['border']}; padding-top:10px;">
-        {wt_source_rows if wt_source_rows else '<div style="font-size:0.8rem;text-align:center;padding:8px;opacity:0.5;">No sources available</div>'}
     </div>
 </div>
 """, unsafe_allow_html=True)
+
+# Full-width multi-source breakdown card (below the grid)
+st.markdown(f"""
+<div class="metric-card" style="margin-bottom:12px; padding:14px 16px; text-align:left;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
+        <div class="metric-title" style="margin-bottom:0;">🌡️ Water Temp — Source Breakdown</div>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:0.72rem; font-weight:700; color:{conf_color};">● {wt_data['confidence']}</span>
+            <span style="font-size:0.62rem; opacity:0.45;">{len(wt_data['sources'])} of 4 sources online</span>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
+st.markdown(wt_source_rows_html, unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
 
 # --- Info Pills ---
 try:
