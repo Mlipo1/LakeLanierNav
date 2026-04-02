@@ -99,38 +99,24 @@ def fetch_data():
 @st.cache_data(ttl=300)
 def fetch_water_temps():
     """
-    Pulls water temperature from up to 6 sources for Lake Lanier.
+    Pulls SURFACE water temperature from multiple sources for Lake Lanier.
     Sources:
-      1. USGS Below Buford Dam (02334430) — outflow sensor, most authoritative
-      2. USGS Flowery Branch (02334480) — cove/inflow reading
-      3. USGS Chestatee River at Gainesville (02334885) — NE arm tributary
-      4. USGS Chattahoochee at Cornelia (02331000) — upper inflow
-      5. Omnia Fishing — crowd-sourced/aggregated lake temp
-      6. Lake Monster — web scrape
+      1. USGS Flowery Branch (02334480) — surface cove sensor
+      2. USGS Chestatee River at Gainesville (02334885) — tributary surface temp
+      3. USGS Chattahoochee at Cornelia (02331000) — upper inflow surface temp
+      4. Omnia Fishing — aggregated lake surface temp
+      5. Lake Monster — scraped lake surface temp
 
-    All readings sanity-checked to 35–85°F. Median used as the reported value.
-    Open-Meteo ERA5 removed — lags reality by weeks, skews 10–15°F warm.
-    USGS 02334400 removed — reservoir level gauge only, no temp sensor.
+    REMOVED:
+    - USGS Below Buford Dam (02334430): measures cold bottom-of-lake discharge
+      water, NOT representative of lake surface temps boaters experience.
+    - USGS Chattahoochee at Cornelia (02331000): too far upstream, often colder.
+    - Open-Meteo ERA5: lags reality by weeks, skews 10-15°F warm.
     """
     import statistics
-
     readings = {}
 
-    # ---- Source 1: USGS Chattahoochee R. Below Buford Dam (02334430) ----
-    # Outflow of Buford Dam — real sensor, most authoritative
-    try:
-        url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334430&parameterCd=00010"
-        res = requests.get(url, timeout=6).json()
-        ts = res['value']['timeSeries']
-        if ts:
-            val_c = float(ts[0]['values'][0]['value'][0]['value'])
-            val_f = round(val_c * 9 / 5 + 32, 1)
-            if 35 <= val_f <= 85:
-                readings["USGS Below Buford Dam"] = val_f
-    except Exception:
-        pass
-
-    # ---- Source 2: USGS Flowery Branch (02334480) ----
+    # ---- Source 1: USGS Flowery Branch (02334480) — surface cove sensor ----
     try:
         url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334480&parameterCd=00010"
         res = requests.get(url, timeout=6).json()
@@ -143,8 +129,7 @@ def fetch_water_temps():
     except Exception:
         pass
 
-    # ---- Source 3: USGS Chestatee River at Gainesville (02334885) ----
-    # Tributary feeding NE arm of Lanier — real temp sensor
+    # ---- Source 2: USGS Chestatee River at Gainesville (02334885) ----
     try:
         url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334885&parameterCd=00010"
         res = requests.get(url, timeout=6).json()
@@ -157,25 +142,11 @@ def fetch_water_temps():
     except Exception:
         pass
 
-    # ---- Source 4: USGS Chattahoochee R. at Cornelia (02331000) ----
-    # Upper Chattahoochee inflow — another real upstream temp gauge
+    # ---- Source 3: Omnia Fishing ----
     try:
-        url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02331000&parameterCd=00010"
-        res = requests.get(url, timeout=6).json()
-        ts = res['value']['timeSeries']
-        if ts:
-            val_c = float(ts[0]['values'][0]['value'][0]['value'])
-            val_f = round(val_c * 9 / 5 + 32, 1)
-            if 35 <= val_f <= 85:
-                readings["USGS Chattahoochee (Cornelia)"] = val_f
-    except Exception:
-        pass
-
-    # ---- Source 5: Omnia Fishing scrape ----
-    try:
-        url = "https://www.omniafishing.com/w/lake-lanier-fishing-reports/current-conditions"
+        url = "https://www.omniafishing.com/w/lake-lanier-fishing-reports/current-conditions?waterbody_slug=lake-lanier"
         headers = {'User-Agent': 'Mozilla/5.0 (compatible; LanierNav/1.0)'}
-        res = requests.get(url, headers=headers, timeout=7)
+        res = requests.get(url, headers=headers, timeout=8)
         match = re.search(r'(\d{2,3})\s*[º°]\s*(?:F(?:ahrenheit)?)?', res.text)
         if match:
             val = int(match.group(1))
@@ -184,11 +155,11 @@ def fetch_water_temps():
     except Exception:
         pass
 
-    # ---- Source 6: Lake Monster scrape ----
+    # ---- Source 4: Lake Monster ----
     try:
-        lm_url = "https://lakemonster.com/lake/GA/Lake-Lanier-234"
+        lm_url = "https://lakemonster.com/lake/Georgia/Lake-Lanier-234"
         headers = {'User-Agent': 'Mozilla/5.0 (compatible; LanierNav/1.0)'}
-        lm_res = requests.get(lm_url, headers=headers, timeout=6)
+        lm_res = requests.get(lm_url, headers=headers, timeout=7)
         match = re.search(r'(\d{2,3})(?:\s*°|\s*&deg;|\s*deg)?\s*F', lm_res.text, re.IGNORECASE)
         if match:
             scraped = int(match.group(1))
@@ -213,7 +184,7 @@ def fetch_water_temps():
     low_val = round(min(vals), 1)
 
     n = len(vals)
-    confidence = "High" if n >= 4 else "Medium" if n >= 2 else "Low (1 source)"
+    confidence = "High" if n >= 3 else "Medium" if n == 2 else "Low (1 source)"
 
     return {
         "sources": readings,
@@ -226,12 +197,12 @@ def fetch_water_temps():
 
 @st.cache_data(ttl=300)
 def fetch_water_temp_history():
-    """Fetch 24h water temperature history from USGS Below Buford Dam (02334430) — has actual temp sensor."""
+    """Fetch 24h water temperature history from USGS Flowery Branch (02334480) — surface cove sensor."""
     try:
         end = datetime.utcnow()
         start = end - timedelta(hours=24)
         url = (
-            f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334430"
+            f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334480"
             f"&parameterCd=00010"
             f"&startDT={start.isoformat()}&endDT={end.isoformat()}"
         )
@@ -526,7 +497,7 @@ st.markdown(f"""
     .stApp {{ background-color: {theme['bg']} !important; font-family: 'Barlow', sans-serif !important; }}
     h3, div[data-testid="stWidgetLabel"] p, p {{ color: {theme['text']} !important; font-weight: 600; font-family: 'Barlow', sans-serif !important; }}
 
-    .main-title {{ color: {theme['text']} !important; font-family: 'Barlow Condensed', sans-serif !important; font-weight: 900; font-size: clamp(1.5rem, 6vw, 2.4rem); white-space: nowrap; margin-bottom: 0px; margin-top: 15px; letter-spacing: -0.5px; }}
+    .main-title {{ color: {theme['text']} !important; font-family: 'Barlow Condensed', sans-serif !important; font-weight: 900; font-size: clamp(1.8rem, 7vw, 3rem); white-space: nowrap; margin-bottom: 0px; margin-top: 10px; letter-spacing: -0.5px; text-align: center; }}
     .section-header {{ font-family: 'Barlow Condensed', sans-serif !important; font-weight: 800; font-size: 1.3rem; color: {theme['text']} !important; margin: 20px 0 10px 0; letter-spacing: 0.5px; text-transform: uppercase; }}
 
     div[data-testid="stToggle"] {{ background-color: {theme['card_bg']}; padding: 6px 12px; border-radius: 20px; border: 1px solid {theme['border']}; margin-bottom: 5px; }}
@@ -617,28 +588,24 @@ st.markdown(f"""
 # --- Header ---
 # now_est already set DST-aware above
 
-col_title, col_controls = st.columns([2.2, 1.8])
-with col_title:
-    st.markdown(f'''
-        <h1 class="main-title">⚓ Lanier Navigator</h1>
-        <div id="live-clock-text" style="color:{theme['sub_text']}; font-size:0.88rem; font-weight:600; margin-top:2px; margin-bottom:12px; padding-left:2px; font-family:'Barlow',sans-serif;"></div>
-    ''', unsafe_allow_html=True)
+st.markdown(f'''
+    <h1 class="main-title">⚓ Lanier Navigator</h1>
+    <div id="live-clock-text" style="color:{theme['sub_text']}; font-size:0.9rem; font-weight:600; margin-top:2px; margin-bottom:10px; font-family:'Barlow',sans-serif; text-align:center;"></div>
+''', unsafe_allow_html=True)
 
-with col_controls:
-    st.write("")
-    c1, c2 = st.columns(2)
-    with c1:
-        new_theme = st.toggle("🌙 Dark", value=st.session_state.dark_mode)
-        if new_theme != st.session_state.dark_mode:
-            st.session_state.dark_mode = new_theme
-            st.query_params["theme"] = "dark" if new_theme else "light"
-            st.rerun()
-    with c2:
-        new_unit = st.toggle("📏 Metric", value=st.session_state.is_metric)
-        if new_unit != st.session_state.is_metric:
-            st.session_state.is_metric = new_unit
-            st.query_params["units"] = "metric" if new_unit else "imperial"
-            st.rerun()
+c1, c2 = st.columns(2)
+with c1:
+    new_theme = st.toggle("🌙 Dark", value=st.session_state.dark_mode)
+    if new_theme != st.session_state.dark_mode:
+        st.session_state.dark_mode = new_theme
+        st.query_params["theme"] = "dark" if new_theme else "light"
+        st.rerun()
+with c2:
+    new_unit = st.toggle("📏 Metric", value=st.session_state.is_metric)
+    if new_unit != st.session_state.is_metric:
+        st.session_state.is_metric = new_unit
+        st.query_params["units"] = "metric" if new_unit else "imperial"
+        st.rerun()
 
 # --- Safety Alerts ---
 if alerts:
@@ -724,7 +691,7 @@ if d['air_temp'] != "N/A":
 
 # Build source rows for popup
 _src_rows_html = ""
-src_icon_map = {"USGS Below Buford Dam": "🏛️", "USGS Flowery Branch": "📍", "USGS Chestatee R.": "🏔️", "USGS Chattahoochee (Cornelia)": "🌊", "Omnia Fishing": "🎣", "Lake Monster": "🐊"}
+src_icon_map = {"USGS Flowery Branch": "📍", "USGS Chestatee R.": "🏔️", "Omnia Fishing": "🎣", "Lake Monster": "🐊"}
 for sn, sv in wt_data["sources"].items():
     ico = src_icon_map.get(sn, "🌡️")
     if st.session_state.is_metric:
@@ -868,9 +835,10 @@ with st.expander(f"🌡️ Water Temp Details — {water_temp_display} ({wt_data
     """, unsafe_allow_html=True)
 
     src_icon_map2 = {
-        "USGS Below Buford Dam": "🏛️", "USGS Flowery Branch": "📍",
-        "USGS Chestatee R.": "🏔️", "USGS Chattahoochee (Cornelia)": "🌊",
-        "Omnia Fishing": "🎣", "Lake Monster": "🐊"
+        "USGS Flowery Branch": "📍",
+        "USGS Chestatee R.": "🏔️",
+        "Omnia Fishing": "🎣",
+        "Lake Monster": "🐊"
     }
     for sn, sv in wt_data["sources"].items():
         ico = src_icon_map2.get(sn, "🌡️")
@@ -894,13 +862,13 @@ with st.expander(f"🌡️ Water Temp Details — {water_temp_display} ({wt_data
     st.markdown(f"""
     <div style="font-family:'Barlow Condensed',sans-serif; font-size:0.7rem; font-weight:700;
                 text-transform:uppercase; letter-spacing:1.2px; color:{theme['sub_text']};
-                margin:16px 0 10px;">24-Hour History (USGS Below Buford Dam)</div>
+                margin:16px 0 10px;">24-Hour History (USGS Flowery Branch — surface sensor)</div>
     <div style="background:{'rgba(0,0,0,0.18)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'};
                 border:1px solid {theme['border']}; border-radius:12px; padding:14px 12px 8px;">
       {wt_chart_svg}
     </div>
     <div style="text-align:center;font-size:0.62rem;opacity:0.3;margin-top:12px;line-height:1.6;">
-      Refreshes every 5 min · USGS 02334430, 02334480, 02334885, 02331000 · Omnia Fishing · Lake Monster<br>
+      Refreshes every 5 min · USGS 02334480 (Flowery Branch), 02334885 (Chestatee) · Omnia Fishing · Lake Monster<br>
       ⚠ Surface temp varies by depth, cove &amp; time of day
     </div>
     """, unsafe_allow_html=True)
@@ -1006,11 +974,11 @@ if chart_points and len(chart_points) >= 3:
     n = len(chart_points)
 
     chart_w = 560
-    chart_h = 150  # taller for readability
-    pad_left = 62
-    pad_right = 16
-    pad_top = 14
-    pad_bottom = 30
+    chart_h = 170  # taller for readability
+    pad_left = 68  # wider for bigger y-axis labels
+    pad_right = 18
+    pad_top = 16
+    pad_bottom = 34
     plot_w = chart_w - pad_left - pad_right
     plot_h = chart_h - pad_top - pad_bottom
 
@@ -1043,7 +1011,7 @@ if chart_points and len(chart_points) >= 3:
             f'stroke="{theme["border"]}" stroke-width="1" stroke-dasharray="4,3"/>'
         )
         y_labels += (
-            f'<text x="{pad_left - 6}" y="{yp + 4:.1f}" text-anchor="end" font-size="10" '
+            f'<text x="{pad_left - 6}" y="{yp + 4:.1f}" text-anchor="end" font-size="12" '
             f'fill="{theme["sub_text"]}" font-family="Barlow Condensed,sans-serif" font-weight="700">{yv:.2f}</text>'
         )
 
@@ -1053,7 +1021,7 @@ if chart_points and len(chart_points) >= 3:
     for idx in x_label_indices:
         if 0 <= idx < n:
             x_labels += (
-                f'<text x="{cx(idx):.1f}" y="{chart_h - 6}" text-anchor="middle" font-size="10" '
+                f'<text x="{cx(idx):.1f}" y="{chart_h - 4}" text-anchor="middle" font-size="12" '
                 f'fill="{theme["sub_text"]}" font-family="Barlow Condensed,sans-serif" font-weight="700">{labels[idx]}</text>'
             )
 
@@ -1061,23 +1029,18 @@ if chart_points and len(chart_points) >= 3:
     last_cx = cx(n - 1)
     last_cy = cy(levels[-1])
 
-    chart_svg = f"""
-    <svg viewBox="0 0 {chart_w} {chart_h}" xmlns="http://www.w3.org/2000/svg" style="width:100%;overflow:visible;">
-        <defs>
-            <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stop-color="#3498db" stop-opacity="0.4"/>
-                <stop offset="100%" stop-color="#3498db" stop-opacity="0.02"/>
-            </linearGradient>
-        </defs>
-        {grid_lines}
-        {y_labels}
-        {x_labels}
-        {full_pool_line}
-        <polyline points="{area_pts}" fill="url(#chartGrad)"/>
-        <polyline points="{pts}" fill="none" stroke="#3498db" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-        <circle cx="{last_cx:.1f}" cy="{last_cy:.1f}" r="5" fill="{dot_color}" stroke="{theme['card_bg']}" stroke-width="2.5"/>
-    </svg>
-    """
+    chart_svg = (
+        f'<svg viewBox="0 0 {chart_w} {chart_h}" xmlns="http://www.w3.org/2000/svg" style="width:100%;overflow:visible;">'
+        f'<defs><linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">'
+        f'<stop offset="0%" stop-color="#3498db" stop-opacity="0.4"/>'
+        f'<stop offset="100%" stop-color="#3498db" stop-opacity="0.02"/>'
+        f'</linearGradient></defs>'
+        f'{grid_lines}{y_labels}{x_labels}{full_pool_line}'
+        f'<polyline points="{area_pts}" fill="url(#chartGrad)"/>'
+        f'<polyline points="{pts}" fill="none" stroke="#3498db" stroke-width="3" stroke-linejoin="round" stroke-linecap="round"/>'
+        f'<circle cx="{last_cx:.1f}" cy="{last_cy:.1f}" r="6" fill="{dot_color}" stroke="{theme["card_bg"]}" stroke-width="2.5"/>'
+        f'</svg>'
+    )
 
     # Build stat pills for the header bar
     delta_arrow = "▲" if delta_24h >= 0 else "▼"
