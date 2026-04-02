@@ -1247,6 +1247,11 @@ places = [
     {"name": "Pelican Pete's Tiki Bar",   "lat": 34.2433778, "lon": -83.9616827, "type": "Dining", "hours": "Thu 4–9pm · Fri–Sun 11am–9pm",                          "web": "https://www.pelicanpetes.com/"},
     {"name": "The Twisted Oar",           "lat": 34.1725558, "lon": -84.0029522, "type": "Dining", "hours": "Mon–Thu 11am–10pm · Fri–Sat 11am–11pm · Sun 11am–10pm", "web": "https://www.twistedoar.com/"},
     {"name": "LandShark Bar & Grill",     "lat": 34.1737378, "lon": -84.0290675, "type": "Dining", "hours": "Wed–Sun (see Margaritaville site for current hours)",    "web": "https://www.margaritavilleresorts.com/"},
+    {"name": "Skogies Lakefront",         "lat": 34.3153074, "lon": -83.8740115, "type": "Dining", "hours": "Fri–Sat 11am–9pm · Sun 10am–8pm",                       "web": "https://lakelanier.com/directory/restaurants/"},
+    {"name": "Bullfrogs Bar & Grille",    "lat": 34.1877198, "lon": -84.0163927, "type": "Dining", "hours": "Daily 11:30am–midnight (Fri–Sat till 1am)",              "web": "https://www.lanierislands.com/dining/"},
+    {"name": "Sidney's Restaurant",       "lat": 34.1875035, "lon": -84.0165245, "type": "Dining", "hours": "Breakfast daily · Dinner Fri–Sat 6–9pm",                 "web": "https://www.lanierislands.com/dining/"},
+    {"name": "Paradise Beach Cantina",    "lat": 34.1777770, "lon": -84.0294344, "type": "Dining", "hours": "Seasonal (waterpark hours)",                             "web": "https://www.margaritavilleresorts.com/"},
+    {"name": "Smokey Q BBQ",              "lat": 34.2088524, "lon": -84.0993836, "type": "Dining", "hours": "Call ahead — seasonal hours",                           "web": "https://lakelanier.com/directory/restaurants/"},
 
     # ══════════════════════════════════════════════════════
     # FUEL — on-water fuel docks
