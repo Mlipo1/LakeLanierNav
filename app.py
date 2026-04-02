@@ -1239,29 +1239,43 @@ st.markdown(f"""
 st.markdown('<div class="section-header">📍 Dock & Dine Navigation</div>', unsafe_allow_html=True)
 
 places = [
-    # --- Dining ---
-    {"name": "Pig Tales (Aqualand)", "lat": 34.1805, "lon": -83.9515, "type": "Dining", "hours": "Daily 11am–10pm", "web": "https://www.pigtaleslakelanier.com/"},
-    {"name": "Fish Tales (Hideaway)", "lat": 34.1833, "lon": -83.9392, "type": "Dining", "hours": "Daily 11am–10pm", "web": "https://www.fishtaleslakelanier.com/"},
-    {"name": "Pelican Pete's", "lat": 34.2432, "lon": -83.9617, "type": "Dining", "hours": "Fri–Sun 11am–9pm", "web": "https://www.pelicanpetes.com/"},
-    {"name": "Twisted Oar", "lat": 34.1692, "lon": -84.0047, "type": "Dining", "hours": "Daily 11am–10pm", "web": "https://www.twistedoar.com/"},
-    {"name": "LandShark (Margaritaville)", "lat": 34.1852, "lon": -84.0150, "type": "Dining", "hours": "Daily 11am–10pm", "web": "https://www.margaritavilleresorts.com/"},
-    {"name": "Burger Barn at Lake Lanier", "lat": 34.2060, "lon": -83.9780, "type": "Dining", "hours": "Sat–Sun 11am–8pm", "web": "https://www.facebook.com/"},
-    {"name": "Lighthouse Grill (Gainesville)", "lat": 34.3020, "lon": -83.8240, "type": "Dining", "hours": "Tue–Sun 11am–9pm", "web": "https://www.lighthousegrillga.com/"},
-    # --- Fuel ---
-    {"name": "Holiday Marina (Gas)", "lat": 34.1712, "lon": -84.0047, "type": "Fuel", "hours": "Daily 9am–6pm", "web": "https://holidaylakelanier.com/"},
-    {"name": "Sunset Cove (Gas)", "lat": 34.1830, "lon": -84.0180, "type": "Fuel", "hours": "Daily 9am–6pm", "web": "https://www.margaritavilleresorts.com/"},
-    {"name": "Bald Ridge Marina Fuel", "lat": 34.2380, "lon": -83.9560, "type": "Fuel", "hours": "Daily 8am–6pm", "web": "https://www.baldridgecreek.com/"},
-    {"name": "Gainesville Marina (Gas)", "lat": 34.3035, "lon": -83.8275, "type": "Fuel", "hours": "Daily 8am–5pm", "web": "https://www.gainesville.org/"},
-    # --- Marina / Launch ---
-    {"name": "Aqualand Marina", "lat": 34.1793, "lon": -83.9538, "type": "Marina", "hours": "Daily 9am–5pm", "web": "https://shmarinas.com/"},
-    {"name": "Port Royale Marina", "lat": 34.2450, "lon": -83.9620, "type": "Marina", "hours": "Daily 8am–5pm", "web": "https://www.bestinboating.com/"},
-    {"name": "Hideaway Bay Marina", "lat": 34.1840, "lon": -83.9405, "type": "Marina", "hours": "Daily 8am–5pm", "web": "https://www.hideawaybaylanier.com/"},
-    {"name": "Bald Ridge Marina", "lat": 34.2375, "lon": -83.9565, "type": "Marina", "hours": "Daily 8am–5pm", "web": "https://www.baldridgecreek.com/"},
-    {"name": "Van Pugh North Boat Ramp", "lat": 34.2288, "lon": -83.9702, "type": "Launch", "hours": "Daily, Sunrise–Sunset", "web": "https://www.gastateparks.org/"},
-    {"name": "West Bank Park Ramp", "lat": 34.1640, "lon": -83.9840, "type": "Launch", "hours": "Daily, Sunrise–Sunset", "web": "https://www.gastateparks.org/"},
-    {"name": "Bolding Mill Park Ramp", "lat": 34.2720, "lon": -83.9240, "type": "Launch", "hours": "Daily, Sunrise–Sunset", "web": "https://www.hallcounty.org/"},
-    {"name": "Shoal Creek Park Ramp", "lat": 34.1550, "lon": -83.9960, "type": "Launch", "hours": "Daily, Sunrise–Sunset", "web": "https://www.gastateparks.org/"},
+    # ── DINING (dock-accessible restaurants) ──────────────────────────────────
+    {"name": "Pig Tales BBQ",            "lat": 34.2034893,  "lon": -83.9704504,  "type": "Dining",  "hours": "Mon–Thu 11am–9pm · Fri–Sat 11am–10pm · Sun 11am–9pm",  "web": "https://www.pigtaleslakelanier.com/"},
+    {"name": "Fish Tales",               "lat": 34.1839329,  "lon": -83.9391580,  "type": "Dining",  "hours": "Mon–Thu 11am–9pm · Fri–Sat 11am–10pm · Sun 11am–9pm",  "web": "https://www.fishtaleslakelanier.com/"},
+    {"name": "Pelican Pete's Tiki Bar",  "lat": 34.2433778,  "lon": -83.9616827,  "type": "Dining",  "hours": "Thu 4–9pm · Fri–Sun 11am–9pm",                         "web": "https://www.pelicanpetes.com/"},
+    {"name": "The Twisted Oar",          "lat": 34.1725558,  "lon": -84.0029522,  "type": "Dining",  "hours": "Mon–Thu 11am–10pm · Fri–Sat 11am–11pm · Sun 11am–10pm","web": "https://www.twistedoar.com/"},
+    {"name": "LandShark Bar & Grill",    "lat": 34.1737378,  "lon": -84.0290675,  "type": "Dining",  "hours": "Wed–Sun (check Margaritaville site for hours)",          "web": "https://www.margaritavilleresorts.com/"},
+
+    # ── FUEL ─────────────────────────────────────────────────────────────────
+    {"name": "Holiday Marina (Fuel)",    "lat": 34.1725471,  "lon": -84.0029407,  "type": "Fuel",    "hours": "Daily 9am–5pm",  "web": "https://holidaylakelanier.com/"},
+    {"name": "Port Royale Marina (Fuel)","lat": 34.2432297,  "lon": -83.9617131,  "type": "Fuel",    "hours": "Daily 9am–5pm",  "web": "https://www.bestinboating.com/"},
+    {"name": "Bald Ridge Marina (Fuel)", "lat": 34.2098813,  "lon": -84.1001233,  "type": "Fuel",    "hours": "Mon–Fri 9am–5pm","web": "https://www.baldridgemarina.com/"},
+    {"name": "Gainesville Marina (Fuel)","lat": 34.3159402,  "lon": -83.8739903,  "type": "Fuel",    "hours": "Daily 9am–5pm",  "web": "https://www.gainesvillemarina.com/"},
+    {"name": "Sunrise Cove Marina (Fuel)","lat": 34.2377157, "lon": -83.9362697,  "type": "Fuel",    "hours": "Mon/Wed–Sun 9am–5pm","web": "https://sunrisecovemarina.com/"},
+
+    # ── MARINAS ───────────────────────────────────────────────────────────────
+    {"name": "Aqualand Marina",          "lat": 34.2005787,  "lon": -83.9588154,  "type": "Marina",  "hours": "Mon–Sat 10am–5pm","web": "https://shmarinas.com/"},
+    {"name": "Port Royale Marina",       "lat": 34.2432297,  "lon": -83.9617131,  "type": "Marina",  "hours": "Mon–Sat 9am–5pm · Sun 10am–4pm","web": "https://www.bestinboating.com/"},
+    {"name": "Safe Harbor Hideaway Bay", "lat": 34.1840423,  "lon": -83.9387991,  "type": "Marina",  "hours": "Daily 9am–5pm",  "web": "https://www.safeharbormarina.com/"},
+    {"name": "Bald Ridge Marina",        "lat": 34.2098813,  "lon": -84.1001233,  "type": "Marina",  "hours": "Mon–Fri 9am–5pm","web": "https://www.baldridgemarina.com/"},
+    {"name": "Holiday on Lake Lanier",   "lat": 34.1725471,  "lon": -84.0029407,  "type": "Marina",  "hours": "Daily 9am–5pm",  "web": "https://holidaylakelanier.com/"},
+    {"name": "Sunrise Cove Marina",      "lat": 34.2377157,  "lon": -83.9362697,  "type": "Marina",  "hours": "Mon/Wed–Sun 9am–5pm","web": "https://sunrisecovemarina.com/"},
+    {"name": "Lazy Days Marina",         "lat": 34.1670332,  "lon": -83.9995203,  "type": "Marina",  "hours": "Mon/Wed–Sun 9am–5pm","web": "https://lazydaysmarina.com/"},
+    {"name": "Habersham Marina",         "lat": 34.1915273,  "lon": -84.1026953,  "type": "Marina",  "hours": "Daily 9am–5pm",  "web": "https://habersham-marina.com/"},
+    {"name": "Gainesville Marina",       "lat": 34.3159402,  "lon": -83.8739903,  "type": "Marina",  "hours": "Daily 9am–5pm",  "web": "https://www.gainesvillemarina.com/"},
+
+    # ── BOAT RAMPS ────────────────────────────────────────────────────────────
+    {"name": "Van Pugh South Ramp",      "lat": 34.1843066,  "lon": -83.9872652,  "type": "Launch",  "hours": "Daily 7am–10pm", "web": "https://www.recreation.gov/"},
+    {"name": "Shoal Creek Park Ramp",    "lat": 34.1586087,  "lon": -84.0078342,  "type": "Launch",  "hours": "Daily 7am–10pm", "web": "https://www.lanierworld.com/"},
+    {"name": "East Bank Park Ramp",      "lat": 34.1519190,  "lon": -84.0592933,  "type": "Launch",  "hours": "Open 24 hours",  "web": "https://www.recreation.gov/"},
+    {"name": "Big Creek Boat Ramp",      "lat": 34.1659897,  "lon": -83.9950671,  "type": "Launch",  "hours": "Daily 6am–10pm", "web": "https://www.lanierworld.com/"},
+    {"name": "Mary Alice Park Ramp",     "lat": 34.1973656,  "lon": -84.0984482,  "type": "Launch",  "hours": "Daily (fee $5)", "web": "https://www.forsythco.com/"},
+    {"name": "Six Mile Creek Park Ramp", "lat": 34.2466862,  "lon": -84.0393655,  "type": "Launch",  "hours": "Daily 7am–10pm", "web": "https://www.forsythco.com/"},
+    {"name": "Bolding Mill Ramp",        "lat": 34.3382421,  "lon": -83.9542324,  "type": "Launch",  "hours": "Open 24 hours",  "web": "https://www.recreation.gov/"},
+    {"name": "War Hill Park Ramp",       "lat": 34.3341563,  "lon": -83.9627713,  "type": "Launch",  "hours": "Daily (fee $3)", "web": "https://gastateparks.org/"},
+    {"name": "Wahoo Creek Ramp",         "lat": 34.3865982,  "lon": -83.8598834,  "type": "Launch",  "hours": "Daily 7am–10pm", "web": "https://www.hallcounty.org/"},
 ]
+
 
 places_json = json.dumps(places)
 map_tile_url = ("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
