@@ -99,72 +99,68 @@ def fetch_data():
 @st.cache_data(ttl=300)
 def fetch_water_temps():
     """
-    Pulls SURFACE water temperature from multiple sources for Lake Lanier.
+    Pulls SURFACE water temperature for Lake Lanier from 2 crowd-sourced web sources.
     Sources:
-      1. USGS Flowery Branch (02334480) — surface cove sensor
-      2. USGS Chestatee River at Gainesville (02334885) — tributary surface temp
-      3. USGS Chattahoochee at Cornelia (02331000) — upper inflow surface temp
-      4. Omnia Fishing — aggregated lake surface temp
-      5. Lake Monster — scraped lake surface temp
+      1. Lake Monster — targets <div class="text-4xl font-bold text-gray-900">
+         URL: https://lakemonster.com/lake/Georgia/Lake-Lanier-234
+      2. Omnia Fishing — targets current_conditions_map__waterTemp div > p
+         URL: https://www.omniafishing.com/w/lake-lanier-fishing-reports/current-conditions
+              ?lat=34.1851&lng=-83.92518&waterbody_slug&zoom=9
 
-    REMOVED:
-    - USGS Below Buford Dam (02334430): measures cold bottom-of-lake discharge
-      water, NOT representative of lake surface temps boaters experience.
-    - USGS Chattahoochee at Cornelia (02331000): too far upstream, often colder.
-    - Open-Meteo ERA5: lags reality by weeks, skews 10-15°F warm.
+    USGS gauges removed:
+    - 02334430 (Below Buford Dam): cold deep discharge, not surface temp
+    - 02334480 (Flowery Branch): inflow tributary, runs colder than open lake
+    - 02334885 (Chestatee): tributary inflow, not representative of lake surface
     """
     import statistics
     readings = {}
 
-    # ---- Source 1: USGS Flowery Branch (02334480) — surface cove sensor ----
+    # ---- Source 1: Lake Monster ----
+    # Target: <div class="text-4xl font-bold text-gray-900">53°F</div>
     try:
-        url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334480&parameterCd=00010"
-        res = requests.get(url, timeout=6).json()
-        ts = res['value']['timeSeries']
-        if ts:
-            val_c = float(ts[0]['values'][0]['value'][0]['value'])
-            val_f = round(val_c * 9 / 5 + 32, 1)
-            if 35 <= val_f <= 85:
-                readings["USGS Flowery Branch"] = val_f
-    except Exception:
-        pass
-
-    # ---- Source 2: USGS Chestatee River at Gainesville (02334885) ----
-    try:
-        url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334885&parameterCd=00010"
-        res = requests.get(url, timeout=6).json()
-        ts = res['value']['timeSeries']
-        if ts:
-            val_c = float(ts[0]['values'][0]['value'][0]['value'])
-            val_f = round(val_c * 9 / 5 + 32, 1)
-            if 35 <= val_f <= 85:
-                readings["USGS Chestatee R."] = val_f
-    except Exception:
-        pass
-
-    # ---- Source 3: Omnia Fishing ----
-    try:
-        url = "https://www.omniafishing.com/w/lake-lanier-fishing-reports/current-conditions?waterbody_slug=lake-lanier"
-        headers = {'User-Agent': 'Mozilla/5.0 (compatible; LanierNav/1.0)'}
+        url = "https://lakemonster.com/lake/Georgia/Lake-Lanier-234"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        }
         res = requests.get(url, headers=headers, timeout=8)
-        match = re.search(r'(\d{2,3})\s*[º°]\s*(?:F(?:ahrenheit)?)?', res.text)
+        # Look for the specific class from the page
+        match = re.search(r'text-4xl font-bold text-gray-900[^>]*>(\d{2,3})\s*°?\s*F?', res.text)
+        if not match:
+            # Fallback: any °F pattern near a temperature
+            match = re.search(r'"text-4xl[^"]*"[^>]*>(\d{2,3})\s*°?\s*F', res.text)
+        if not match:
+            # Broad fallback
+            match = re.search(r'>(\d{2,3})°F<', res.text)
+        if match:
+            val = int(match.group(1))
+            if 35 <= val <= 85:
+                readings["Lake Monster"] = float(val)
+    except Exception:
+        pass
+
+    # ---- Source 2: Omnia Fishing ----
+    # Target: <div class="current_conditions_map__waterTemp--wE9A"><p>58° F</p></div>
+    try:
+        url = ("https://www.omniafishing.com/w/lake-lanier-fishing-reports/current-conditions"
+               "?lat=34.1851&lng=-83.92518&waterbody_slug&zoom=9")
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        }
+        res = requests.get(url, headers=headers, timeout=10)
+        # Target the specific waterTemp class
+        match = re.search(r'waterTemp[^>]*>.*?<p>(\d{2,3})\s*°?\s*F?</p>', res.text, re.DOTALL)
+        if not match:
+            # Fallback: chipName Lake Lanier then grab nearby temp
+            match = re.search(r'Lake Lanier.{0,300}?(\d{2,3})\s*°\s*F', res.text, re.DOTALL)
+        if not match:
+            # Broad fallback pattern
+            match = re.search(r'(\d{2,3})\s*°\s*F', res.text)
         if match:
             val = int(match.group(1))
             if 35 <= val <= 85:
                 readings["Omnia Fishing"] = float(val)
-    except Exception:
-        pass
-
-    # ---- Source 4: Lake Monster ----
-    try:
-        lm_url = "https://lakemonster.com/lake/Georgia/Lake-Lanier-234"
-        headers = {'User-Agent': 'Mozilla/5.0 (compatible; LanierNav/1.0)'}
-        lm_res = requests.get(lm_url, headers=headers, timeout=7)
-        match = re.search(r'(\d{2,3})(?:\s*°|\s*&deg;|\s*deg)?\s*F', lm_res.text, re.IGNORECASE)
-        if match:
-            scraped = int(match.group(1))
-            if 35 <= scraped <= 85:
-                readings["Lake Monster"] = float(scraped)
     except Exception:
         pass
 
@@ -184,7 +180,7 @@ def fetch_water_temps():
     low_val = round(min(vals), 1)
 
     n = len(vals)
-    confidence = "High" if n >= 3 else "Medium" if n == 2 else "Low (1 source)"
+    confidence = "High" if n >= 2 else "Low (1 source)"
 
     return {
         "sources": readings,
@@ -197,7 +193,7 @@ def fetch_water_temps():
 
 @st.cache_data(ttl=300)
 def fetch_water_temp_history():
-    """Fetch 24h water temperature history from USGS Flowery Branch (02334480) — surface cove sensor."""
+    """Fetch 24h water temperature history from USGS Flowery Branch (02334480) as best available sensor."""
     try:
         end = datetime.utcnow()
         start = end - timedelta(hours=24)
@@ -691,7 +687,7 @@ if d['air_temp'] != "N/A":
 
 # Build source rows for popup
 _src_rows_html = ""
-src_icon_map = {"USGS Flowery Branch": "📍", "USGS Chestatee R.": "🏔️", "Omnia Fishing": "🎣", "Lake Monster": "🐊"}
+src_icon_map = {"Lake Monster": "🐊", "Omnia Fishing": "🎣"}
 for sn, sv in wt_data["sources"].items():
     ico = src_icon_map.get(sn, "🌡️")
     if st.session_state.is_metric:
@@ -835,10 +831,8 @@ with st.expander(f"🌡️ Water Temp Details — {water_temp_display} ({wt_data
     """, unsafe_allow_html=True)
 
     src_icon_map2 = {
-        "USGS Flowery Branch": "📍",
-        "USGS Chestatee R.": "🏔️",
+        "Lake Monster": "🐊",
         "Omnia Fishing": "🎣",
-        "Lake Monster": "🐊"
     }
     for sn, sv in wt_data["sources"].items():
         ico = src_icon_map2.get(sn, "🌡️")
@@ -862,13 +856,13 @@ with st.expander(f"🌡️ Water Temp Details — {water_temp_display} ({wt_data
     st.markdown(f"""
     <div style="font-family:'Barlow Condensed',sans-serif; font-size:0.7rem; font-weight:700;
                 text-transform:uppercase; letter-spacing:1.2px; color:{theme['sub_text']};
-                margin:16px 0 10px;">24-Hour History (USGS Flowery Branch — surface sensor)</div>
+                margin:16px 0 10px;">24-Hour Trend (USGS Flowery Branch reference sensor)</div>
     <div style="background:{'rgba(0,0,0,0.18)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'};
                 border:1px solid {theme['border']}; border-radius:12px; padding:14px 12px 8px;">
       {wt_chart_svg}
     </div>
     <div style="text-align:center;font-size:0.62rem;opacity:0.3;margin-top:12px;line-height:1.6;">
-      Refreshes every 5 min · USGS 02334480 (Flowery Branch), 02334885 (Chestatee) · Omnia Fishing · Lake Monster<br>
+      Refreshes every 5 min · Lake Monster (lakemonster.com) · Omnia Fishing (omniafishing.com)<br>
       ⚠ Surface temp varies by depth, cove &amp; time of day
     </div>
     """, unsafe_allow_html=True)
