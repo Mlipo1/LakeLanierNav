@@ -1,22 +1,9 @@
 import streamlit as st
-import pandas as pd
-import folium
-from streamlit_folium import st_folium
 import requests
 import re
 import json
-from datetime import datetime, timedelta
-
-def _eastern_offset(utc_dt=None):
-    """Return correct US Eastern UTC offset as timedelta, DST-aware via date math (works on UTC servers)."""
-    if utc_dt is None:
-        utc_dt = datetime.utcnow()
-    year = utc_dt.year
-    mar1 = datetime(year, 3, 1)
-    dst_start = (mar1 + timedelta(days=(6 - mar1.weekday()) % 7 + 7)).replace(hour=7)  # 2nd Sun Mar, 2am EST
-    nov1 = datetime(year, 11, 1)
-    dst_end = (nov1 + timedelta(days=(6 - nov1.weekday()) % 7)).replace(hour=6)         # 1st Sun Nov, 2am EDT
-    return timedelta(hours=4 if dst_start <= utc_dt < dst_end else 5)
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 st.set_page_config(page_title="Lanier Navigator", layout="centered", page_icon="⚓")
 
@@ -58,7 +45,7 @@ def fetch_data():
 
     # Weather Data
     try:
-        API_KEY = "Ctel2fkIkgMDlQPIx8rN7WDPjxCLRNDY"
+        API_KEY = st.secrets.get("PIRATE_WEATHER_API_KEY", "Ctel2fkIkgMDlQPIx8rN7WDPjxCLRNDY")
         pw_url = f"https://api.pirateweather.net/forecast/{API_KEY}/34.18,-83.98?units=us"
         response = requests.get(pw_url, timeout=10)
         response.raise_for_status()
@@ -81,16 +68,16 @@ def fetch_data():
         data["rain_chance"] = int(rain_prob * 100) if rain_prob is not None else 0
 
         if 'sunriseTime' in daily_data:
-            sr_utc = datetime.utcfromtimestamp(daily_data['sunriseTime'])
-            data["sunrise"] = (sr_utc - _eastern_offset(sr_utc)).strftime("%I:%M %p")
+            sr_utc = datetime.fromtimestamp(daily_data['sunriseTime'], tz=timezone.utc)
+            data["sunrise"] = sr_utc.astimezone(ZoneInfo("America/New_York")).strftime("%I:%M %p")
         if 'sunsetTime' in daily_data:
-            ss_utc = datetime.utcfromtimestamp(daily_data['sunsetTime'])
-            data["sunset"] = (ss_utc - _eastern_offset(ss_utc)).strftime("%I:%M %p")
+            ss_utc = datetime.fromtimestamp(daily_data['sunsetTime'], tz=timezone.utc)
+            data["sunset"] = ss_utc.astimezone(ZoneInfo("America/New_York")).strftime("%I:%M %p")
 
     except Exception as e:
         st.error(f"🚨 Pirate Weather Fetch Error: {str(e)}")
 
-    now_est = datetime.utcnow() - _eastern_offset()
+    now_est = datetime.now(ZoneInfo("America/New_York"))
     data["last_updated"] = now_est.strftime("%I:%M %p")
 
     return data
@@ -128,7 +115,7 @@ def fetch_water_temps():
 def fetch_level_trend():
     """Returns (trend_24h_delta, list of (timestamp_str, level_ft)) for charting."""
     try:
-        end = datetime.utcnow()
+        end = datetime.now(timezone.utc)
         start = end - timedelta(hours=24)
         url = (
             f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400"
@@ -141,8 +128,8 @@ def fetch_level_trend():
         chart_points = []
         for v in values:
             try:
-                dt_str = v['dateTime'][:16]  # "2024-04-01T14:30"
-                dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M") - _eastern_offset()
+                dt_str = v['dateTime'].replace('Z', '+00:00')
+                dt = datetime.fromisoformat(dt_str).astimezone(ZoneInfo("America/New_York"))
                 level = float(v['value'])
                 chart_points.append((dt.strftime("%H:%M"), level))
             except Exception:
@@ -298,7 +285,7 @@ def get_safety_alert(d, wave):
         alerts.append("❄️ <strong>Freezing Conditions:</strong> Watch for black ice on boat ramps and slippery decks.")
 
     try:
-        now_est = datetime.utcnow() - _eastern_offset()
+        now_est = datetime.now(ZoneInfo("America/New_York"))
         curr_mins = now_est.time().hour * 60 + now_est.time().minute
         ss_time = datetime.strptime(d["sunset"], "%I:%M %p").time()
         ss_mins = ss_time.hour * 60 + ss_time.minute
@@ -334,7 +321,7 @@ trend_24h, chart_points = fetch_level_trend()
 wave_height = round(0.016 * (d["wind_mph"] ** 1.5), 1)
 alerts = get_safety_alert(d, wave_height)
 
-now_est = datetime.utcnow() - _eastern_offset()
+now_est = datetime.now(ZoneInfo("America/New_York"))
 
 # Metric Conversions
 if st.session_state.is_metric:
