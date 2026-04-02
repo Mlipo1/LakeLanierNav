@@ -98,132 +98,31 @@ def fetch_data():
 
 @st.cache_data(ttl=300)
 def fetch_water_temps():
-    import statistics
-    readings = {}
-
-    # 1. Enhanced headers to bypass basic bot protection (Cloudflare/AWS WAF)
+    """Pulls SURFACE water temperature for Lake Lanier exclusively from Lake Monster."""
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.5',
-        'Upgrade-Insecure-Requests': '1',
-        'Sec-Fetch-Dest': 'document',
-        'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
-        'Sec-Fetch-User': '?1'
     }
-
-    # ---- Source 1: Lake Monster ----
+    
     try:
         url = "https://lakemonster.com/lake/Georgia/Lake-Lanier-234"
         res = requests.get(url, headers=headers, timeout=8)
         
-        # Broad regex: Looks for "Water Temp" or "Temperature" nearby a degree value
+        # Look for "Water Temp" nearby a degree value
         match = re.search(r'(?i)(?:water\s*temp|temperature).*?(\d{2,3})\s*°?\s*F', res.text, re.DOTALL)
         if not match:
-            # Broadest fallback
+            # Fallback regex
             match = re.search(r'>(\d{2,3})\s*°?\s*F?<', res.text)
             
         if match:
             val = int(match.group(1))
             if 35 <= val <= 90:
-                readings["Lake Monster"] = float(val)
+                return float(val)
     except Exception:
         pass
 
-    # ---- Source 2: Omnia Fishing ----
-    try:
-        url = ("https://www.omniafishing.com/w/lake-lanier-fishing-reports/current-conditions"
-               "?lat=34.1851&lng=-83.92518&waterbody_slug&zoom=9")
-        res = requests.get(url, headers=headers, timeout=10)
-        
-        # Broad regex: Target the words "water temp" dynamically
-        match = re.search(r'(?i)water\s*temp(?:erature)?.*?(\d{2,3})\s*°?\s*F', res.text, re.DOTALL)
-        if not match:
-            match = re.search(r'(\d{2,3})\s*°\s*F', res.text)
-            
-        if match:
-            val = int(match.group(1))
-            if 35 <= val <= 90:
-                readings["Omnia Fishing"] = float(val)
-    except Exception:
-        pass
-
-    # ---- FALLBACK: USGS Flowery Branch ----
-    # If both scrapers get blocked or fail, grab the latest temp from your history function!
-    if not readings:
-        try:
-            hist = fetch_water_temp_history()
-            if hist and len(hist) > 0:
-                latest_temp_f = hist[-1][1]  # Get the last tuple in the list, grab the temp [1]
-                readings["USGS Flowery Branch"] = float(latest_temp_f)
-        except Exception:
-            pass
-
-    # ---- Compute stats ----
-    if not readings:
-        return {
-            "sources": {},
-            "median": "N/A",
-            "high": "N/A",
-            "low": "N/A",
-            "confidence": "No data"
-        }
-
-    vals = list(readings.values())
-    median_val = round(statistics.median(vals), 1)
-    high_val = round(max(vals), 1)
-    low_val = round(min(vals), 1)
-
-    n = len(vals)
-    if n >= 2:
-        confidence = "High"
-    elif "USGS Flowery Branch" in readings:
-        confidence = "Medium (USGS Fallback)"
-    else:
-        confidence = "Low (1 source)"
-
-    return {
-        "sources": readings,
-        "median": median_val,
-        "high": high_val,
-        "low": low_val,
-        "confidence": confidence
-    }
-
-@st.cache_data(ttl=300)
-def fetch_water_temp_history():
-    """Fetch 24h water temperature history from USGS Flowery Branch (02334480) as best available sensor."""
-    try:
-        end = datetime.utcnow()
-        start = end - timedelta(hours=24)
-        url = (
-            f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334480"
-            f"&parameterCd=00010"
-            f"&startDT={start.isoformat()}&endDT={end.isoformat()}"
-        )
-        res = requests.get(url, timeout=6).json()
-        values = res['value']['timeSeries'][0]['values'][0]['value']
-
-        _et_offset = _eastern_offset()
-
-        chart_points = []
-        for v in values:
-            try:
-                dt_str = v['dateTime'][:16]
-                dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M") - _et_offset
-                temp_c = float(v['value'])
-                temp_f = round(temp_c * 9 / 5 + 32, 1)
-                chart_points.append((dt.strftime("%H:%M"), temp_f))
-            except Exception:
-                continue
-
-        # Thin to ~24 points
-        step = max(1, len(chart_points) // 24)
-        return chart_points[::step]
-    except Exception:
-        return []
-
+    return "N/A"
 
 @st.cache_data(ttl=300)
 def fetch_level_trend():
@@ -425,12 +324,11 @@ def get_safety_alert(d, wave):
 
 # --- INITIALIZE DATA ---
 d = fetch_data()
-wt_data = fetch_water_temps()
-wt_history = fetch_water_temp_history()
+wt_val = fetch_water_temps()
 
-# Inject median water temp back into d so safety alerts / boating score still work
-if wt_data["median"] != "N/A":
-    d["water_temp"] = wt_data["median"]
+# Inject water temp back into d so safety alerts / boating score still work
+if wt_val != "N/A":
+    d["water_temp"] = wt_val
 
 trend_24h, chart_points = fetch_level_trend()
 wave_height = round(0.016 * (d["wind_mph"] ** 1.5), 1)
@@ -443,9 +341,7 @@ if st.session_state.is_metric:
     unit_dist, unit_temp, unit_speed, unit_vis, unit_press = "m", "°C", "km/h", "km", "hPa"
     disp_level = round(d['level'] * 0.3048, 2) if d['level'] != "N/A" else "N/A"
     disp_pool_diff = round(abs((d['level'] - FULL_POOL_FT) * 0.3048), 2) if d['level'] != "N/A" else "N/A"
-    disp_water_temp = round((float(wt_data['median']) - 32) * 5 / 9, 1) if wt_data['median'] != "N/A" else "N/A"
-    disp_water_high = round((wt_data['high'] - 32) * 5 / 9, 1) if wt_data['high'] != "N/A" else "N/A"
-    disp_water_low  = round((wt_data['low']  - 32) * 5 / 9, 1) if wt_data['low']  != "N/A" else "N/A"
+    disp_water_temp = round((wt_val - 32) * 5 / 9, 1) if wt_val != "N/A" else "N/A"
     disp_air_temp = round((d['air_temp'] - 32) * 5 / 9, 1) if d['air_temp'] != "N/A" else "N/A"
     disp_wind = round(d['wind_mph'] * 1.60934, 1)
     disp_gusts = round(d['gusts'] * 1.60934, 1)
@@ -456,9 +352,7 @@ else:
     unit_dist, unit_temp, unit_speed, unit_vis, unit_press = "'", "°F", "mph", "mi", "inHg"
     disp_level = round(d['level'], 2) if d['level'] != "N/A" else "N/A"
     disp_pool_diff = round(abs(d['level'] - FULL_POOL_FT), 2) if d['level'] != "N/A" else "N/A"
-    disp_water_temp = wt_data['median'] if wt_data['median'] != "N/A" else "N/A"
-    disp_water_high = wt_data['high']   if wt_data['high']   != "N/A" else "N/A"
-    disp_water_low  = wt_data['low']    if wt_data['low']    != "N/A" else "N/A"
+    disp_water_temp = wt_val if wt_val != "N/A" else "N/A"
     disp_air_temp = round(d['air_temp'], 1) if d['air_temp'] != "N/A" else "N/A"
     disp_wind = round(d['wind_mph'], 1)
     disp_gusts = round(d['gusts'], 1)
@@ -633,14 +527,20 @@ else:
 level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
 
 # Water temp color (always based on °F median for thresholds)
-wt_median_f = wt_data['median']
-if wt_median_f != "N/A":
-    wt_f = float(wt_median_f)
+if wt_val != "N/A":
+    wt_f = float(wt_val)
     temp_color = "#74b9ff" if wt_f < 50 else "#3498db" if wt_f < 60 else "#f39c12" if wt_f < 80 else "#e74c3c"
     water_temp_display = f"{disp_water_temp}{unit_temp}"
 else:
     temp_color = theme['sub_text']
     water_temp_display = "N/A"
+
+air_temp_color = theme['text']
+if d['air_temp'] != "N/A":
+    if d['air_temp'] >= 85: air_temp_color = "#ff7675"
+    elif d['air_temp'] >= 75: air_temp_color = "#fdcb6e"
+    elif d['air_temp'] <= 45: air_temp_color = "#74b9ff"
+    elif d['air_temp'] <= 32: air_temp_color = "#81ecec"
 
 # Build per-source rows for the water temp breakdown card
 wt_source_rows = ""
@@ -758,13 +658,11 @@ def build_wt_chart_svg(pts, is_metric, unit_temp, card_bg, border, sub_text, tex
 wt_chart_svg = build_wt_chart_svg(wt_history, st.session_state.is_metric, unit_temp,
                                    theme['card_bg'], theme['border'], theme['sub_text'], theme['text'])
 
-# Render as a single self-contained HTML component (no split markdown calls)
-# ── 3 METRIC CARDS via st.markdown (native Streamlit, no iframe issues) ──
 st.markdown(f"""
 <style>
   .cards-grid {{
     display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 12px; margin-bottom: 12px;
+    gap: 12px; margin-bottom: 24px; /* Added more margin since expander is gone */
   }}
   .card {{
     background: {theme['card_bg']}; border: 1px solid {theme['border']};
@@ -787,7 +685,6 @@ st.markdown(f"""
     color: {theme['sub_text']}; line-height: 1.45;
   }}
   .card-tiny {{ font-size: 0.6rem; opacity: 0.4; display: inline-block; margin-top: 3px; }}
-  .tap-hint {{ font-size: 0.58rem; opacity: 0.35; margin-top: 5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: {theme['text']}; }}
 
   @media (max-width: 520px) {{
     .cards-grid {{ grid-template-columns: 1fr 1fr; gap: 8px; }}
@@ -813,10 +710,9 @@ st.markdown(f"""
     <div class="card-label">Water Temp</div>
     <div class="card-value" style="color:{temp_color};">{water_temp_display}</div>
     <div class="card-sub">
-      <span style="color:#74b9ff;">↓{disp_water_low}{unit_temp}</span> · <span style="color:#e74c3c;">↑{disp_water_high}{unit_temp}</span>
-      <br><span class="card-tiny">{wt_data['confidence']} · {len(wt_data['sources'])} sources</span>
+      Lake Monster
+      <br><span class="card-tiny">Updated: {d['last_updated']}</span>
     </div>
-    <div class="tap-hint">▼ expand below for details</div>
   </div>
 </div>
 """, unsafe_allow_html=True)
