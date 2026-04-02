@@ -796,22 +796,19 @@ wt_chart_svg = build_wt_chart_svg(wt_history, st.session_state.is_metric, unit_t
                                    theme['card_bg'], theme['border'], theme['sub_text'], theme['text'])
 
 # Render as a single self-contained HTML component (no split markdown calls)
-wt_modal_html = f"""
+# ── 3 METRIC CARDS via st.markdown (native Streamlit, no iframe issues) ──
+st.markdown(f"""
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800;900&family=Barlow:wght@400;500;600;700&display=swap');
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ background: transparent; font-family: 'Barlow', sans-serif; }}
-
   .cards-grid {{
     display: grid; grid-template-columns: repeat(3, 1fr);
-    gap: 12px; margin-bottom: 4px;
+    gap: 12px; margin-bottom: 12px;
   }}
   .card {{
     background: {theme['card_bg']}; border: 1px solid {theme['border']};
     border-radius: 16px; padding: 18px 14px;
     box-shadow: 0 2px 12px rgba(0,0,0,0.07);
     text-align: center; display: flex; flex-direction: column;
-    justify-content: center; min-height: 130px;
+    justify-content: center;
   }}
   .card-label {{
     color: {theme['sub_text']}; font-family: 'Barlow Condensed', sans-serif;
@@ -827,80 +824,16 @@ wt_modal_html = f"""
     color: {theme['sub_text']}; line-height: 1.45;
   }}
   .card-tiny {{ font-size: 0.6rem; opacity: 0.4; display: inline-block; margin-top: 3px; }}
-  .card-wt {{ cursor: pointer; transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s; }}
-  .card-wt:hover {{ border-color: #f39c12; box-shadow: 0 4px 18px rgba(243,156,18,0.2); transform: translateY(-1px); }}
-  .card-wt:active {{ transform: translateY(0); }}
   .tap-hint {{ font-size: 0.58rem; opacity: 0.35; margin-top: 5px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: {theme['text']}; }}
 
-  .wt-overlay {{ display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px); z-index: 99999; align-items: center; justify-content: center; padding: 12px; }}
-  .wt-overlay.open {{ display: flex; }}
-
-  .wt-modal {{
-    background: {theme['card_bg']}; border: 1px solid {theme['border']};
-    border-radius: 22px; width: 100%; max-width: 500px; max-height: 92vh;
-    overflow-y: auto; box-shadow: 0 24px 80px rgba(0,0,0,0.65);
-    display: flex; flex-direction: column;
-  }}
-  .modal-header {{
-    background: {'#252836' if st.session_state.dark_mode else '#f0f4f8'};
-    border-radius: 22px 22px 0 0; padding: 22px 22px 20px;
-    border-bottom: 1px solid {theme['border']}; flex-shrink: 0;
-  }}
-  .modal-topbar {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }}
-  .modal-eyebrow {{ font-family: 'Barlow Condensed', sans-serif; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: {theme['sub_text']}; }}
-  .modal-close {{
-    background: {'rgba(255,255,255,0.1)' if st.session_state.dark_mode else 'rgba(0,0,0,0.08)'};
-    border: 1px solid {theme['border']}; color: {theme['text']};
-    border-radius: 50%; width: 34px; height: 34px; cursor: pointer;
-    font-size: 1rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-  }}
-  .modal-big-temp {{ font-family: 'Barlow Condensed', sans-serif; font-size: 4.5rem; font-weight: 900; line-height: 1; letter-spacing: -1px; color: {temp_color}; }}
-  .modal-meta {{ display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }}
-  .modal-badge {{ display: inline-flex; align-items: center; gap: 3px; padding: 4px 12px; border-radius: 20px; font-size: 0.78rem; font-weight: 700; border: 1px solid currentColor; opacity: 0.85; font-family: 'Barlow Condensed', sans-serif; }}
-  .modal-sources-count {{ font-size: 0.8rem; color: {theme['sub_text']}; font-weight: 500; }}
-  .modal-body {{ padding: 20px 22px 24px; }}
-  .section-lbl {{ font-family: 'Barlow Condensed', sans-serif; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: {theme['sub_text']}; margin: 18px 0 10px; }}
-  .section-lbl:first-child {{ margin-top: 0; }}
-  .src-row {{ display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: 11px; margin-bottom: 7px; background: {'rgba(255,255,255,0.04)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'}; border: 1px solid {theme['border']}; }}
-  .src-name {{ font-size: 0.85rem; font-weight: 600; color: {theme['sub_text']}; display: flex; align-items: center; gap: 7px; }}
-  .src-val {{ font-family: 'Barlow Condensed', sans-serif; font-size: 1.1rem; font-weight: 800; color: {theme['text']}; }}
-  .src-check {{ background: rgba(46,204,113,0.15); color: #2ecc71; border: 1px solid rgba(46,204,113,0.3); border-radius: 10px; font-size: 0.62rem; font-weight: 800; padding: 1px 7px; margin-left: 5px; }}
-  .chart-wrap {{ background: {'rgba(0,0,0,0.18)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'}; border: 1px solid {theme['border']}; border-radius: 12px; padding: 14px 12px 8px; }}
-  .modal-footer {{ text-align: center; font-size: 0.62rem; opacity: 0.3; margin-top: 18px; line-height: 1.6; font-weight: 500; }}
-
-  @media (max-width: 480px) {{
+  @media (max-width: 520px) {{
     .cards-grid {{ grid-template-columns: 1fr 1fr; gap: 8px; }}
     .cards-grid .card:nth-child(3) {{ grid-column: span 2; }}
-    .card {{ min-height: 110px; padding: 14px 12px; border-radius: 13px; }}
-    .card-value {{ font-size: 1.65rem; }}
+    .card-value {{ font-size: 1.65rem !important; }}
+    .card {{ padding: 14px 12px; border-radius: 13px; }}
     .card-sub {{ font-size: 0.7rem; }}
-    .modal-big-temp {{ font-size: 3.5rem; }}
-    .modal-header {{ padding: 18px 18px 16px; }}
-    .modal-body {{ padding: 16px 18px 20px; }}
   }}
 </style>
-
-<script>
-// Auto-resize iframe height to fit content — prevents water temp card being cut off on mobile
-function resizeToContent() {{
-  var h = document.documentElement.scrollHeight;
-  // Post message to Streamlit parent to resize the iframe
-  window.parent.postMessage({{type: 'streamlit:setComponentValue', value: h}}, '*');
-  // Also directly set iframe height via parent DOM access
-  try {{
-    var frames = window.parent.document.querySelectorAll('iframe');
-    frames.forEach(function(f) {{
-      if (f.contentWindow === window) {{
-        f.style.height = (h + 4) + 'px';
-      }}
-    }});
-  }} catch(e) {{}}
-}}
-window.addEventListener('load', resizeToContent);
-window.addEventListener('resize', resizeToContent);
-setTimeout(resizeToContent, 100);
-setTimeout(resizeToContent, 500);
-</script>
 
 <div class="cards-grid">
   <div class="card">
@@ -913,40 +846,66 @@ setTimeout(resizeToContent, 500);
     <div class="card-value" style="color:{air_temp_color};">{disp_air_temp}{unit_temp}</div>
     <div class="card-sub">Flowery Branch<br><span class="card-tiny">Updated: {d['last_updated']}</span></div>
   </div>
-  <div class="card card-wt" onclick="document.getElementById('wtOverlay').classList.add('open')">
+  <div class="card">
     <div class="card-label">Water Temp</div>
     <div class="card-value" style="color:{temp_color};">{water_temp_display}</div>
-    <div class="card-sub"><span style="color:#74b9ff;">↓{disp_water_low}{unit_temp}</span> · <span style="color:#e74c3c;">↑{disp_water_high}{unit_temp}</span><br><span class="card-tiny">{wt_data['confidence']} · {len(wt_data['sources'])} sources</span></div>
-    <div class="tap-hint">▼ tap for details</div>
+    <div class="card-sub">
+      <span style="color:#74b9ff;">↓{disp_water_low}{unit_temp}</span> · <span style="color:#e74c3c;">↑{disp_water_high}{unit_temp}</span>
+      <br><span class="card-tiny">{wt_data['confidence']} · {len(wt_data['sources'])} sources</span>
+    </div>
+    <div class="tap-hint">▼ expand below for details</div>
   </div>
 </div>
+""", unsafe_allow_html=True)
 
-<div id="wtOverlay" class="wt-overlay" onclick="if(event.target===this)this.classList.remove('open')">
-  <div class="wt-modal">
-    <div class="modal-header">
-      <div class="modal-topbar">
-        <div class="modal-eyebrow">🌡️ Water Temperature</div>
-        <button class="modal-close" onclick="document.getElementById('wtOverlay').classList.remove('open')">✕</button>
-      </div>
-      <div class="modal-big-temp">{water_temp_display}</div>
-      <div class="modal-meta">
-        <span class="modal-sources-count">median of {len(wt_data['sources'])} sources</span>
-        <span class="modal-badge" style="color:{conf_color};">● {wt_data['confidence']}</span>
-        <span class="modal-badge" style="color:#74b9ff;">↓ {disp_water_low}{unit_temp}</span>
-        <span class="modal-badge" style="color:#e74c3c;">↑ {disp_water_high}{unit_temp}</span>
-      </div>
+# ── WATER TEMP DETAIL — native st.expander (works on all devices) ──
+with st.expander(f"🌡️ Water Temp Details — {water_temp_display} ({wt_data['confidence']} confidence)"):
+    # Source breakdown
+    st.markdown(f"""
+    <div style="font-family:'Barlow Condensed',sans-serif; font-size:0.7rem; font-weight:700;
+                text-transform:uppercase; letter-spacing:1.2px; color:{theme['sub_text']};
+                margin-bottom:10px;">Source Readings</div>
+    """, unsafe_allow_html=True)
+
+    src_icon_map2 = {
+        "USGS Below Buford Dam": "🏛️", "USGS Flowery Branch": "📍",
+        "USGS Chestatee R.": "🏔️", "USGS Chattahoochee (Cornelia)": "🌊",
+        "Omnia Fishing": "🎣", "Lake Monster": "🐊"
+    }
+    for sn, sv in wt_data["sources"].items():
+        ico = src_icon_map2.get(sn, "🌡️")
+        dsv = f"{round((sv-32)*5/9,1)}{unit_temp}" if st.session_state.is_metric else f"{sv}{unit_temp}"
+        near = wt_data["median"] != "N/A" and abs(sv - float(wt_data["median"])) <= 0.5
+        badge = f'<span style="background:rgba(46,204,113,0.15);color:#2ecc71;border:1px solid rgba(46,204,113,0.3);border-radius:8px;font-size:0.6rem;font-weight:800;padding:1px 6px;margin-left:5px;">median</span>' if near else ""
+        st.markdown(f"""
+        <div style="display:flex;justify-content:space-between;align-items:center;
+                    padding:9px 14px;border-radius:10px;margin-bottom:6px;
+                    background:{'rgba(255,255,255,0.04)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'};
+                    border:1px solid {theme['border']};">
+          <span style="font-size:0.85rem;font-weight:600;color:{theme['sub_text']};">{ico} {sn}{badge}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:800;color:{theme['text']};">{dsv}</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    if not wt_data["sources"]:
+        st.markdown(f'<div style="text-align:center;padding:14px;opacity:0.4;font-size:0.85rem;">No sources available</div>', unsafe_allow_html=True)
+
+    # 24h chart
+    st.markdown(f"""
+    <div style="font-family:'Barlow Condensed',sans-serif; font-size:0.7rem; font-weight:700;
+                text-transform:uppercase; letter-spacing:1.2px; color:{theme['sub_text']};
+                margin:16px 0 10px;">24-Hour History (USGS Below Buford Dam)</div>
+    <div style="background:{'rgba(0,0,0,0.18)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'};
+                border:1px solid {theme['border']}; border-radius:12px; padding:14px 12px 8px;">
+      {wt_chart_svg}
     </div>
-    <div class="modal-body">
-      <div class="section-lbl">Source Readings</div>
-      {_src_rows_html}
-      <div class="section-lbl">24-Hour History (USGS Below Buford Dam)</div>
-      <div class="chart-wrap">{wt_chart_svg}</div>
-      <div class="modal-footer">Refreshes every 5 min · USGS 02334430, 02334480, 02334885, 02331000 · Omnia Fishing · Lake Monster<br>⚠ Surface temp varies by depth, cove &amp; time of day</div>
+    <div style="text-align:center;font-size:0.62rem;opacity:0.3;margin-top:12px;line-height:1.6;">
+      Refreshes every 5 min · USGS 02334430, 02334480, 02334885, 02331000 · Omnia Fishing · Lake Monster<br>
+      ⚠ Surface temp varies by depth, cove &amp; time of day
     </div>
-  </div>
-</div>
-"""
-st.components.v1.html(wt_modal_html, height=200, scrolling=False)
+    """, unsafe_allow_html=True)
+
+
 
 
 # --- Info Pills ---
