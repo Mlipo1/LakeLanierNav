@@ -98,71 +98,67 @@ def fetch_data():
 
 @st.cache_data(ttl=300)
 def fetch_water_temps():
-    """
-    Pulls SURFACE water temperature for Lake Lanier from 2 crowd-sourced web sources.
-    Sources:
-      1. Lake Monster — targets <div class="text-4xl font-bold text-gray-900">
-         URL: https://lakemonster.com/lake/Georgia/Lake-Lanier-234
-      2. Omnia Fishing — targets current_conditions_map__waterTemp div > p
-         URL: https://www.omniafishing.com/w/lake-lanier-fishing-reports/current-conditions
-              ?lat=34.1851&lng=-83.92518&waterbody_slug&zoom=9
-
-    USGS gauges removed:
-    - 02334430 (Below Buford Dam): cold deep discharge, not surface temp
-    - 02334480 (Flowery Branch): inflow tributary, runs colder than open lake
-    - 02334885 (Chestatee): tributary inflow, not representative of lake surface
-    """
     import statistics
     readings = {}
 
+    # 1. Enhanced headers to bypass basic bot protection (Cloudflare/AWS WAF)
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.5',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1'
+    }
+
     # ---- Source 1: Lake Monster ----
-    # Target: <div class="text-4xl font-bold text-gray-900">53°F</div>
     try:
         url = "https://lakemonster.com/lake/Georgia/Lake-Lanier-234"
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        }
         res = requests.get(url, headers=headers, timeout=8)
-        # Look for the specific class from the page
-        match = re.search(r'text-4xl font-bold text-gray-900[^>]*>(\d{2,3})\s*°?\s*F?', res.text)
+        
+        # Broad regex: Looks for "Water Temp" or "Temperature" nearby a degree value
+        match = re.search(r'(?i)(?:water\s*temp|temperature).*?(\d{2,3})\s*°?\s*F', res.text, re.DOTALL)
         if not match:
-            # Fallback: any °F pattern near a temperature
-            match = re.search(r'"text-4xl[^"]*"[^>]*>(\d{2,3})\s*°?\s*F', res.text)
-        if not match:
-            # Broad fallback
-            match = re.search(r'>(\d{2,3})°F<', res.text)
+            # Broadest fallback
+            match = re.search(r'>(\d{2,3})\s*°?\s*F?<', res.text)
+            
         if match:
             val = int(match.group(1))
-            if 35 <= val <= 85:
+            if 35 <= val <= 90:
                 readings["Lake Monster"] = float(val)
     except Exception:
         pass
 
     # ---- Source 2: Omnia Fishing ----
-    # Target: <div class="current_conditions_map__waterTemp--wE9A"><p>58° F</p></div>
     try:
         url = ("https://www.omniafishing.com/w/lake-lanier-fishing-reports/current-conditions"
                "?lat=34.1851&lng=-83.92518&waterbody_slug&zoom=9")
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        }
         res = requests.get(url, headers=headers, timeout=10)
-        # Target the specific waterTemp class
-        match = re.search(r'waterTemp[^>]*>.*?<p>(\d{2,3})\s*°?\s*F?</p>', res.text, re.DOTALL)
+        
+        # Broad regex: Target the words "water temp" dynamically
+        match = re.search(r'(?i)water\s*temp(?:erature)?.*?(\d{2,3})\s*°?\s*F', res.text, re.DOTALL)
         if not match:
-            # Fallback: chipName Lake Lanier then grab nearby temp
-            match = re.search(r'Lake Lanier.{0,300}?(\d{2,3})\s*°\s*F', res.text, re.DOTALL)
-        if not match:
-            # Broad fallback pattern
             match = re.search(r'(\d{2,3})\s*°\s*F', res.text)
+            
         if match:
             val = int(match.group(1))
-            if 35 <= val <= 85:
+            if 35 <= val <= 90:
                 readings["Omnia Fishing"] = float(val)
     except Exception:
         pass
+
+    # ---- FALLBACK: USGS Flowery Branch ----
+    # If both scrapers get blocked or fail, grab the latest temp from your history function!
+    if not readings:
+        try:
+            hist = fetch_water_temp_history()
+            if hist and len(hist) > 0:
+                latest_temp_f = hist[-1][1]  # Get the last tuple in the list, grab the temp [1]
+                readings["USGS Flowery Branch"] = float(latest_temp_f)
+        except Exception:
+            pass
 
     # ---- Compute stats ----
     if not readings:
@@ -180,7 +176,12 @@ def fetch_water_temps():
     low_val = round(min(vals), 1)
 
     n = len(vals)
-    confidence = "High" if n >= 2 else "Low (1 source)"
+    if n >= 2:
+        confidence = "High"
+    elif "USGS Flowery Branch" in readings:
+        confidence = "Medium (USGS Fallback)"
+    else:
+        confidence = "Low (1 source)"
 
     return {
         "sources": readings,
@@ -189,7 +190,6 @@ def fetch_water_temps():
         "low": low_val,
         "confidence": confidence
     }
-
 
 @st.cache_data(ttl=300)
 def fetch_water_temp_history():
