@@ -1,9 +1,22 @@
 import streamlit as st
+import pandas as pd
+import folium
+from streamlit_folium import st_folium
 import requests
 import re
 import json
-from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
+from datetime import datetime, timedelta
+
+def _eastern_offset(utc_dt=None):
+    """Return correct US Eastern UTC offset as timedelta, DST-aware via date math (works on UTC servers)."""
+    if utc_dt is None:
+        utc_dt = datetime.utcnow()
+    year = utc_dt.year
+    mar1 = datetime(year, 3, 1)
+    dst_start = (mar1 + timedelta(days=(6 - mar1.weekday()) % 7 + 7)).replace(hour=7)  # 2nd Sun Mar, 2am EST
+    nov1 = datetime(year, 11, 1)
+    dst_end = (nov1 + timedelta(days=(6 - nov1.weekday()) % 7)).replace(hour=6)         # 1st Sun Nov, 2am EDT
+    return timedelta(hours=4 if dst_start <= utc_dt < dst_end else 5)
 
 st.set_page_config(page_title="Lanier Navigator", layout="centered", page_icon="⚓")
 
@@ -45,7 +58,7 @@ def fetch_data():
 
     # Weather Data
     try:
-        API_KEY = st.secrets.get("PIRATE_WEATHER_API_KEY", "Ctel2fkIkgMDlQPIx8rN7WDPjxCLRNDY")
+        API_KEY = "Ctel2fkIkgMDlQPIx8rN7WDPjxCLRNDY"
         pw_url = f"https://api.pirateweather.net/forecast/{API_KEY}/34.18,-83.98?units=us"
         response = requests.get(pw_url, timeout=10)
         response.raise_for_status()
@@ -68,16 +81,16 @@ def fetch_data():
         data["rain_chance"] = int(rain_prob * 100) if rain_prob is not None else 0
 
         if 'sunriseTime' in daily_data:
-            sr_utc = datetime.fromtimestamp(daily_data['sunriseTime'], tz=timezone.utc)
-            data["sunrise"] = sr_utc.astimezone(ZoneInfo("America/New_York")).strftime("%I:%M %p")
+            sr_utc = datetime.utcfromtimestamp(daily_data['sunriseTime'])
+            data["sunrise"] = (sr_utc - _eastern_offset(sr_utc)).strftime("%I:%M %p")
         if 'sunsetTime' in daily_data:
-            ss_utc = datetime.fromtimestamp(daily_data['sunsetTime'], tz=timezone.utc)
-            data["sunset"] = ss_utc.astimezone(ZoneInfo("America/New_York")).strftime("%I:%M %p")
+            ss_utc = datetime.utcfromtimestamp(daily_data['sunsetTime'])
+            data["sunset"] = (ss_utc - _eastern_offset(ss_utc)).strftime("%I:%M %p")
 
     except Exception as e:
         st.error(f"🚨 Pirate Weather Fetch Error: {str(e)}")
 
-    now_est = datetime.now(ZoneInfo("America/New_York"))
+    now_est = datetime.utcnow() - _eastern_offset()
     data["last_updated"] = now_est.strftime("%I:%M %p")
 
     return data
@@ -115,7 +128,7 @@ def fetch_water_temps():
 def fetch_level_trend():
     """Returns (trend_24h_delta, list of (timestamp_str, level_ft)) for charting."""
     try:
-        end = datetime.now(timezone.utc)
+        end = datetime.utcnow()
         start = end - timedelta(hours=24)
         url = (
             f"https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400"
@@ -128,8 +141,8 @@ def fetch_level_trend():
         chart_points = []
         for v in values:
             try:
-                dt_str = v['dateTime'].replace('Z', '+00:00')
-                dt = datetime.fromisoformat(dt_str).astimezone(ZoneInfo("America/New_York"))
+                dt_str = v['dateTime'][:16]  # "2024-04-01T14:30"
+                dt = datetime.strptime(dt_str, "%Y-%m-%dT%H:%M") - _eastern_offset()
                 level = float(v['value'])
                 chart_points.append((dt.strftime("%H:%M"), level))
             except Exception:
@@ -285,7 +298,7 @@ def get_safety_alert(d, wave):
         alerts.append("❄️ <strong>Freezing Conditions:</strong> Watch for black ice on boat ramps and slippery decks.")
 
     try:
-        now_est = datetime.now(ZoneInfo("America/New_York"))
+        now_est = datetime.utcnow() - _eastern_offset()
         curr_mins = now_est.time().hour * 60 + now_est.time().minute
         ss_time = datetime.strptime(d["sunset"], "%I:%M %p").time()
         ss_mins = ss_time.hour * 60 + ss_time.minute
@@ -321,7 +334,7 @@ trend_24h, chart_points = fetch_level_trend()
 wave_height = round(0.016 * (d["wind_mph"] ** 1.5), 1)
 alerts = get_safety_alert(d, wave_height)
 
-now_est = datetime.now(ZoneInfo("America/New_York"))
+now_est = datetime.utcnow() - _eastern_offset()
 
 # Metric Conversions
 if st.session_state.is_metric:
@@ -686,11 +699,11 @@ if chart_points and len(chart_points) >= 3:
     n = len(chart_points)
 
     chart_w = 560
-    chart_h = 170  # taller for readability
-    pad_left = 68  # wider for bigger y-axis labels
-    pad_right = 18
-    pad_top = 16
-    pad_bottom = 34
+    chart_h = 200  # Increased height for better mobile visibility
+    pad_left = 80  # Increased padding for larger Y-axis text
+    pad_right = 24
+    pad_top = 20
+    pad_bottom = 40  # Increased padding for larger X-axis text
     plot_w = chart_w - pad_left - pad_right
     plot_h = chart_h - pad_top - pad_bottom
 
@@ -706,7 +719,7 @@ if chart_points and len(chart_points) >= 3:
         full_pool_line = (
             f'<line x1="{pad_left}" y1="{fp_y:.1f}" x2="{chart_w - pad_right}" y2="{fp_y:.1f}" '
             f'stroke="#f39c12" stroke-width="1.5" stroke-dasharray="6,4" opacity="0.7"/>'
-            f'<text x="{chart_w - pad_right + 2}" y="{fp_y + 4:.1f}" font-size="8" fill="#f39c12" '
+            f'<text x="{chart_w - pad_right + 4}" y="{fp_y + 4:.1f}" font-size="12" fill="#f39c12" '
             f'font-family="Barlow Condensed,sans-serif" font-weight="700" opacity="0.85">FULL</text>'
         )
     else:
@@ -723,7 +736,7 @@ if chart_points and len(chart_points) >= 3:
             f'stroke="{theme["border"]}" stroke-width="1" stroke-dasharray="4,3"/>'
         )
         y_labels += (
-            f'<text x="{pad_left - 6}" y="{yp + 4:.1f}" text-anchor="end" font-size="12" '
+            f'<text x="{pad_left - 8}" y="{yp + 5:.1f}" text-anchor="end" font-size="16" '
             f'fill="{theme["sub_text"]}" font-family="Barlow Condensed,sans-serif" font-weight="700">{yv:.2f}</text>'
         )
 
@@ -733,7 +746,7 @@ if chart_points and len(chart_points) >= 3:
     for idx in x_label_indices:
         if 0 <= idx < n:
             x_labels += (
-                f'<text x="{cx(idx):.1f}" y="{chart_h - 4}" text-anchor="middle" font-size="12" '
+                f'<text x="{cx(idx):.1f}" y="{chart_h - 6}" text-anchor="middle" font-size="16" '
                 f'fill="{theme["sub_text"]}" font-family="Barlow Condensed,sans-serif" font-weight="700">{labels[idx]}</text>'
             )
 
@@ -771,21 +784,23 @@ if chart_points and len(chart_points) >= 3:
 
     sub = theme['sub_text']
     txt = theme['text']
+    
+    # Updated stat pill to wrap dynamically on mobile and use a larger font
     stat_pill = (
-        f'<span style="font-size:0.75rem;font-weight:700;font-family:Barlow Condensed,sans-serif;">'
-        f'<span style="color:{sub};margin-right:14px;">📏 Current: <b style="color:{txt}">{cur_disp}</b></span>'
-        f'<span style="color:{sub};margin-right:14px;">24h: <b style="color:{delta_col}">{delta_arrow} {d24_disp}</b></span>'
-        f'<span style="color:{sub};">vs Full Pool: <b style="color:{pool_col}">{pool_arrow} {pool_disp}</b></span>'
+        f'<span style="font-size:0.95rem;font-weight:700;font-family:Barlow Condensed,sans-serif; display:flex; flex-wrap:wrap; justify-content:center; gap:12px;">'
+        f'<span style="color:{sub};">📏 Current: <b style="color:{txt}">{cur_disp}</b></span>'
+        f'<span style="color:{sub};">24h: <b style="color:{delta_col}">{delta_arrow} {d24_disp}</b></span>'
+        f'<span style="color:{sub};">vs Full: <b style="color:{pool_col}">{pool_arrow} {pool_disp}</b></span>'
         f'</span>'
     )
 
     st.markdown(f"""
     <div class="chart-wrapper">
-        <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:6px;">
-            <span style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;">ELEVATION (ft AMSL) — 24h window</span>
-            <span style="color:{delta_col}; font-size:0.85rem; font-weight:800;">{delta_arrow} {abs(delta_24h)} ft over 24h</span>
+        <div class="chart-title" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+            <span style="font-size:0.9rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;">ELEVATION (ft AMSL) — 24h window</span>
+            <span style="color:{delta_col}; font-size:1.05rem; font-weight:800;">{delta_arrow} {abs(delta_24h)} ft over 24h</span>
         </div>
-        <div style="margin-bottom:10px; padding:8px 10px; background:{'rgba(255,255,255,0.04)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'}; border-radius:8px; border:1px solid {theme['border']};">
+        <div style="margin-bottom:16px; padding:12px 10px; background:{'rgba(255,255,255,0.04)' if st.session_state.dark_mode else 'rgba(0,0,0,0.04)'}; border-radius:8px; border:1px solid {theme['border']};">
             {stat_pill}
         </div>
         {chart_svg}
