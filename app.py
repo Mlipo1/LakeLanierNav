@@ -1239,42 +1239,90 @@ st.markdown(f"""
 st.markdown('<div class="section-header">📍 Dock & Dine Navigation</div>', unsafe_allow_html=True)
 
 places = [
-    # ── DINING (dock-accessible restaurants) ──────────────────────────────────
-    {"name": "Pig Tales BBQ",            "lat": 34.2034893,  "lon": -83.9704504,  "type": "Dining",  "hours": "Mon–Thu 11am–9pm · Fri–Sat 11am–10pm · Sun 11am–9pm",  "web": "https://www.pigtaleslakelanier.com/"},
-    {"name": "Fish Tales",               "lat": 34.1839329,  "lon": -83.9391580,  "type": "Dining",  "hours": "Mon–Thu 11am–9pm · Fri–Sat 11am–10pm · Sun 11am–9pm",  "web": "https://www.fishtaleslakelanier.com/"},
-    {"name": "Pelican Pete's Tiki Bar",  "lat": 34.2433778,  "lon": -83.9616827,  "type": "Dining",  "hours": "Thu 4–9pm · Fri–Sun 11am–9pm",                         "web": "https://www.pelicanpetes.com/"},
-    {"name": "The Twisted Oar",          "lat": 34.1725558,  "lon": -84.0029522,  "type": "Dining",  "hours": "Mon–Thu 11am–10pm · Fri–Sat 11am–11pm · Sun 11am–10pm","web": "https://www.twistedoar.com/"},
-    {"name": "LandShark Bar & Grill",    "lat": 34.1737378,  "lon": -84.0290675,  "type": "Dining",  "hours": "Wed–Sun (check Margaritaville site for hours)",          "web": "https://www.margaritavilleresorts.com/"},
+    # ══════════════════════════════════════════════════════
+    # DINING — dock-accessible restaurants
+    # ══════════════════════════════════════════════════════
+    {"name": "Pig Tales BBQ",             "lat": 34.2034893, "lon": -83.9704504, "type": "Dining", "hours": "Mon–Thu 11am–9pm · Fri–Sat 11am–10pm · Sun 11am–9pm",   "web": "https://www.pigtaleslakelanier.com/"},
+    {"name": "Fish Tales",                "lat": 34.1839329, "lon": -83.9391580, "type": "Dining", "hours": "Mon–Thu 11am–9pm · Fri–Sat 11am–10pm · Sun 11am–9pm",   "web": "https://www.fishtaleslakelanier.com/"},
+    {"name": "Pelican Pete's Tiki Bar",   "lat": 34.2433778, "lon": -83.9616827, "type": "Dining", "hours": "Thu 4–9pm · Fri–Sun 11am–9pm",                          "web": "https://www.pelicanpetes.com/"},
+    {"name": "The Twisted Oar",           "lat": 34.1725558, "lon": -84.0029522, "type": "Dining", "hours": "Mon–Thu 11am–10pm · Fri–Sat 11am–11pm · Sun 11am–10pm", "web": "https://www.twistedoar.com/"},
+    {"name": "LandShark Bar & Grill",     "lat": 34.1737378, "lon": -84.0290675, "type": "Dining", "hours": "Wed–Sun (see Margaritaville site for current hours)",    "web": "https://www.margaritavilleresorts.com/"},
 
-    # ── FUEL ─────────────────────────────────────────────────────────────────
-    {"name": "Holiday Marina (Fuel)",    "lat": 34.1725471,  "lon": -84.0029407,  "type": "Fuel",    "hours": "Daily 9am–5pm",  "web": "https://holidaylakelanier.com/"},
-    {"name": "Port Royale Marina (Fuel)","lat": 34.2432297,  "lon": -83.9617131,  "type": "Fuel",    "hours": "Daily 9am–5pm",  "web": "https://www.bestinboating.com/"},
-    {"name": "Bald Ridge Marina (Fuel)", "lat": 34.2098813,  "lon": -84.1001233,  "type": "Fuel",    "hours": "Mon–Fri 9am–5pm","web": "https://www.baldridgemarina.com/"},
-    {"name": "Gainesville Marina (Fuel)","lat": 34.3159402,  "lon": -83.8739903,  "type": "Fuel",    "hours": "Daily 9am–5pm",  "web": "https://www.gainesvillemarina.com/"},
-    {"name": "Sunrise Cove Marina (Fuel)","lat": 34.2377157, "lon": -83.9362697,  "type": "Fuel",    "hours": "Mon/Wed–Sun 9am–5pm","web": "https://sunrisecovemarina.com/"},
+    # ══════════════════════════════════════════════════════
+    # FUEL — on-water fuel docks
+    # ══════════════════════════════════════════════════════
+    {"name": "Holiday Marina Fuel",        "lat": 34.1725471, "lon": -84.0029407, "type": "Fuel", "hours": "Daily 9am–5pm",      "web": "https://holidaylakelanier.com/"},
+    {"name": "Port Royale Marina Fuel",    "lat": 34.2432297, "lon": -83.9617131, "type": "Fuel", "hours": "Daily 9am–5pm",      "web": "https://www.bestinboating.com/"},
+    {"name": "Bald Ridge Marina Fuel",     "lat": 34.2098813, "lon": -84.1001233, "type": "Fuel", "hours": "Mon–Fri 9am–5pm",    "web": "https://lakelanier.com/directory/marinas/bald-ridge-marina/"},
+    {"name": "Gainesville Marina Fuel",    "lat": 34.3159402, "lon": -83.8739903, "type": "Fuel", "hours": "Daily 9am–5pm",      "web": "https://lakelanier.com/directory/marinas/gainesville-marina/"},
+    {"name": "Sunrise Cove Marina Fuel",   "lat": 34.2377157, "lon": -83.9362697, "type": "Fuel", "hours": "Mon/Wed–Sun 9am–5pm","web": "https://lakelanier.com/directory/marinas/sunrise-cove-marina/"},
 
-    # ── MARINAS ───────────────────────────────────────────────────────────────
-    {"name": "Aqualand Marina",          "lat": 34.2005787,  "lon": -83.9588154,  "type": "Marina",  "hours": "Mon–Sat 10am–5pm","web": "https://shmarinas.com/"},
-    {"name": "Port Royale Marina",       "lat": 34.2432297,  "lon": -83.9617131,  "type": "Marina",  "hours": "Mon–Sat 9am–5pm · Sun 10am–4pm","web": "https://www.bestinboating.com/"},
-    {"name": "Safe Harbor Hideaway Bay", "lat": 34.1840423,  "lon": -83.9387991,  "type": "Marina",  "hours": "Daily 9am–5pm",  "web": "https://www.safeharbormarina.com/"},
-    {"name": "Bald Ridge Marina",        "lat": 34.2098813,  "lon": -84.1001233,  "type": "Marina",  "hours": "Mon–Fri 9am–5pm","web": "https://www.baldridgemarina.com/"},
-    {"name": "Holiday on Lake Lanier",   "lat": 34.1725471,  "lon": -84.0029407,  "type": "Marina",  "hours": "Daily 9am–5pm",  "web": "https://holidaylakelanier.com/"},
-    {"name": "Sunrise Cove Marina",      "lat": 34.2377157,  "lon": -83.9362697,  "type": "Marina",  "hours": "Mon/Wed–Sun 9am–5pm","web": "https://sunrisecovemarina.com/"},
-    {"name": "Lazy Days Marina",         "lat": 34.1670332,  "lon": -83.9995203,  "type": "Marina",  "hours": "Mon/Wed–Sun 9am–5pm","web": "https://lazydaysmarina.com/"},
-    {"name": "Habersham Marina",         "lat": 34.1915273,  "lon": -84.1026953,  "type": "Marina",  "hours": "Daily 9am–5pm",  "web": "https://habersham-marina.com/"},
-    {"name": "Gainesville Marina",       "lat": 34.3159402,  "lon": -83.8739903,  "type": "Marina",  "hours": "Daily 9am–5pm",  "web": "https://www.gainesvillemarina.com/"},
+    # ══════════════════════════════════════════════════════
+    # MARINAS
+    # ══════════════════════════════════════════════════════
+    {"name": "Aqualand Marina",            "lat": 34.2005787, "lon": -83.9588154, "type": "Marina", "hours": "Mon–Sat 10am–5pm",      "web": "https://lakelanier.com/directory/marinas/aqualand-marina/"},
+    {"name": "Port Royale Marina",         "lat": 34.2432297, "lon": -83.9617131, "type": "Marina", "hours": "Mon–Sat 9am–5pm · Sun 10am–4pm", "web": "https://www.bestinboating.com/"},
+    {"name": "Safe Harbor Hideaway Bay",   "lat": 34.1840423, "lon": -83.9387991, "type": "Marina", "hours": "Daily 9am–5pm",          "web": "https://lakelanier.com/directory/marinas/hideaway-bay-marina/"},
+    {"name": "Bald Ridge Marina",          "lat": 34.2098813, "lon": -84.1001233, "type": "Marina", "hours": "Mon–Fri 9am–5pm",        "web": "https://lakelanier.com/directory/marinas/bald-ridge-marina/"},
+    {"name": "Holiday on Lake Lanier",     "lat": 34.1725471, "lon": -84.0029407, "type": "Marina", "hours": "Daily 9am–5pm",          "web": "https://holidaylakelanier.com/"},
+    {"name": "Sunrise Cove Marina",        "lat": 34.2377157, "lon": -83.9362697, "type": "Marina", "hours": "Mon/Wed–Sun 9am–5pm",    "web": "https://lakelanier.com/directory/marinas/sunrise-cove-marina/"},
+    {"name": "Lazy Days Marina",           "lat": 34.1670332, "lon": -83.9995203, "type": "Marina", "hours": "Mon/Wed–Sun 9am–5pm",    "web": "https://lazydaysmarina.com/"},
+    {"name": "Habersham Marina",           "lat": 34.1915273, "lon": -84.1026953, "type": "Marina", "hours": "Daily 9am–5pm",          "web": "https://habersham-marina.com/"},
+    {"name": "Gainesville Marina",         "lat": 34.3159402, "lon": -83.8739903, "type": "Marina", "hours": "Daily 9am–5pm",          "web": "https://lakelanier.com/directory/marinas/gainesville-marina/"},
 
-    # ── BOAT RAMPS ────────────────────────────────────────────────────────────
-    {"name": "Van Pugh South Ramp",      "lat": 34.1843066,  "lon": -83.9872652,  "type": "Launch",  "hours": "Daily 7am–10pm", "web": "https://www.recreation.gov/"},
-    {"name": "Shoal Creek Park Ramp",    "lat": 34.1586087,  "lon": -84.0078342,  "type": "Launch",  "hours": "Daily 7am–10pm", "web": "https://www.lanierworld.com/"},
-    {"name": "East Bank Park Ramp",      "lat": 34.1519190,  "lon": -84.0592933,  "type": "Launch",  "hours": "Open 24 hours",  "web": "https://www.recreation.gov/"},
-    {"name": "Big Creek Boat Ramp",      "lat": 34.1659897,  "lon": -83.9950671,  "type": "Launch",  "hours": "Daily 6am–10pm", "web": "https://www.lanierworld.com/"},
-    {"name": "Mary Alice Park Ramp",     "lat": 34.1973656,  "lon": -84.0984482,  "type": "Launch",  "hours": "Daily (fee $5)", "web": "https://www.forsythco.com/"},
-    {"name": "Six Mile Creek Park Ramp", "lat": 34.2466862,  "lon": -84.0393655,  "type": "Launch",  "hours": "Daily 7am–10pm", "web": "https://www.forsythco.com/"},
-    {"name": "Bolding Mill Ramp",        "lat": 34.3382421,  "lon": -83.9542324,  "type": "Launch",  "hours": "Open 24 hours",  "web": "https://www.recreation.gov/"},
-    {"name": "War Hill Park Ramp",       "lat": 34.3341563,  "lon": -83.9627713,  "type": "Launch",  "hours": "Daily (fee $3)", "web": "https://gastateparks.org/"},
-    {"name": "Wahoo Creek Ramp",         "lat": 34.3865982,  "lon": -83.8598834,  "type": "Launch",  "hours": "Daily 7am–10pm", "web": "https://www.hallcounty.org/"},
+    # ══════════════════════════════════════════════════════
+    # LAUNCH / PARKS — every verified ramp on the lake
+    # Sources: Army Corps schedule + lakelanier.com/boat-ramps
+    # ══════════════════════════════════════════════════════
+    # --- Army Corps / USACE parks ---
+    {"name": "Balus Creek Park",           "lat": 34.2533889, "lon": -83.9144083, "type": "Launch", "hours": "Daily 7am–10pm",          "web": "https://lakelanier.com/boat-ramps/"},
+    {"name": "Belton Bridge Park",         "lat": 34.4374510, "lon": -83.6807130, "type": "Launch", "hours": "Mar 24–Sep 22, 8am–10pm", "web": "https://lakelanier.com/boat-ramps/"},
+    {"name": "Bolding Mill Park & Ramp",   "lat": 34.3382421, "lon": -83.9542324, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/parks/bolding-mill-park/"},
+    {"name": "Burton Mill Park Ramp",      "lat": 34.1673665, "lon": -83.9762467, "type": "Launch", "hours": "Mar 24–Sep 22",           "web": "https://lakelanier.com/directory/parks/burton-mill-park/"},
+    {"name": "East Bank Park Ramp",        "lat": 34.1519190, "lon": -84.0592933, "type": "Launch", "hours": "Open 24 hours",           "web": "https://lakelanier.com/directory/parks/east-bank-park/"},
+    {"name": "Keith's Bridge Park Ramp",   "lat": 34.2826786, "lon": -83.9440260, "type": "Launch", "hours": "Mar 24–Sep 22",           "web": "https://lakelanier.com/directory/parks/keith-bridge-park/"},
+    {"name": "Little Hall Park Ramp",      "lat": 34.3104649, "lon": -83.9423999, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/parks/little-hall-park/"},
+    {"name": "Long Hollow Park Ramp",      "lat": 34.2817938, "lon": -83.9720393, "type": "Launch", "hours": "Mar 24–Sep 22",           "web": "https://lakelanier.com/directory/parks/long-hollow-park/"},
+    {"name": "Mountain View Park Ramp",    "lat": 34.2558365, "lon": -83.9444105, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/parks/mountain-view-park/"},
+    {"name": "Old Federal Park Ramp",      "lat": 34.2277107, "lon": -83.9361777, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/campgrounds/old-federal-park/"},
+    {"name": "Robinson Park Ramp",         "lat": 34.2639000, "lon": -84.0321000, "type": "Launch", "hours": "Mar 24–Sep 22",           "web": "https://lakelanier.com/directory/parks/robinson-park/"},
+    {"name": "Thompson Creek Park Ramp",   "lat": 34.3520976, "lon": -84.0196308, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/parks/thompson-creek-park/"},
+    {"name": "Tidwell Park Ramp",          "lat": 34.1948953, "lon": -84.0641132, "type": "Launch", "hours": "Open 24 hours",           "web": "https://lakelanier.com/directory/parks/tidwell-park/"},
+    {"name": "Toto Creek Park Ramp",       "lat": 34.3950219, "lon": -83.9802421, "type": "Launch", "hours": "Feb 28–Oct 31",           "web": "https://lakelanier.com/directory/parks/toto-creek-park/"},
+    {"name": "Two Mile Creek Ramp",        "lat": 34.2215435, "lon": -84.0013254, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/parks/two-mile-creek-park/"},
+    {"name": "Van Pugh North Park",        "lat": 34.1873153, "lon": -83.9791274, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/parks/van-pugh-park/"},
+    {"name": "Van Pugh South Ramp",        "lat": 34.1843066, "lon": -83.9872652, "type": "Launch", "hours": "May–Sep (Sat–Sun)",       "web": "https://lakelanier.com/van-pugh-south-park-day-camping-on-the-lake/"},
+    {"name": "Vanns Tavern Ramp",          "lat": 34.2348805, "lon": -83.9821556, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/boat-ramps/"},
+    # --- Forsyth County parks ---
+    {"name": "Charleston Park Ramp",       "lat": 34.2439624, "lon": -84.0461362, "type": "Launch", "hours": "Daily 7am–10pm",          "web": "https://lakelanier.com/directory/parks/charleston-park/"},
+    {"name": "Shady Grove Campground",     "lat": 34.2100000, "lon": -84.0730000, "type": "Launch", "hours": "Seasonal (call ahead)",   "web": "https://lakelanier.com/directory/campgrounds/shady-grove-campground/"},
+    {"name": "Six Mile Creek Park Ramp",   "lat": 34.2466862, "lon": -84.0393655, "type": "Launch", "hours": "Daily 7am–10pm",          "web": "https://lakelanier.com/directory/parks/six-mile-park/"},
+    {"name": "Young Deer Creek Park",      "lat": 34.2206540, "lon": -84.0564720, "type": "Launch", "hours": "Daily 7am–10pm",          "web": "https://lakelanier.com/directory/parks/young-deer-park/"},
+    {"name": "Mary Alice Park Ramp",       "lat": 34.1973656, "lon": -84.0984482, "type": "Launch", "hours": "Daily (fee $5)",          "web": "https://lakelanier.com/directory/parks/mary-alice-park/"},
+    {"name": "Little Ridge Park",          "lat": 34.1904847, "lon": -84.0886591, "type": "Launch", "hours": "Daily 8am–10pm",          "web": "https://lakelanier.com/directory/parks/little-ridge-park/"},
+    # --- Hall County / Gainesville parks ---
+    {"name": "Clarks Bridge Park",         "lat": 34.3533160, "lon": -83.7938753, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/parks/clarks-bridge-park/"},
+    {"name": "Duckett Mill Park Ramp",     "lat": 34.3073924, "lon": -83.9309592, "type": "Launch", "hours": "Mar 26–Nov 16",           "web": "https://lakelanier.com/directory/parks/duckett-mill-park/"},
+    {"name": "Lanier Point Park",          "lat": 34.2990922, "lon": -83.8680517, "type": "Launch", "hours": "Open 24 hours",           "web": "https://lakelanier.com/directory/parks/lanier-point-park/"},
+    {"name": "Laurel Park Ramp",           "lat": 34.3550532, "lon": -83.8133850, "type": "Launch", "hours": "Open 24 hours",           "web": "https://lakelanier.com/directory/parks/laurel-park/"},
+    {"name": "Little River Park Ramp",     "lat": 34.3591053, "lon": -83.8290524, "type": "Launch", "hours": "Daily 7am–10pm",          "web": "https://lakelanier.com/directory/parks/little-river-park/"},
+    {"name": "Longwood Park",              "lat": 34.3038509, "lon": -83.8468570, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/parks/river-forks-park/"},
+    {"name": "River Forks Park Ramp",      "lat": 34.2880390, "lon": -83.9054126, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/parks/river-forks-park/"},
+    {"name": "Sardis Creek Park",          "lat": 34.3360965, "lon": -83.8875300, "type": "Launch", "hours": "Open 24 hours",           "web": "https://lakelanier.com/directory/parks/sardis-creek-park/"},
+    {"name": "Simpson Park Ramp",          "lat": 34.3203405, "lon": -83.8917663, "type": "Launch", "hours": "Open year-round",         "web": "https://lakelanier.com/directory/parks/simpson-park/"},
+    {"name": "Nix Bridge Park",            "lat": 34.3629432, "lon": -83.9850366, "type": "Launch", "hours": "Daily 8am–10pm",          "web": "https://lakelanier.com/directory/parks/nix-bridge-park/"},
+    {"name": "Thompson Bridge Park",       "lat": 34.3720000, "lon": -83.9660000, "type": "Launch", "hours": "Mar 24–Sep 22",           "web": "https://lakelanier.com/directory/parks/thompson-bridge-park/"},
+    # --- Dawson County parks ---
+    {"name": "War Hill Park Ramp",         "lat": 34.3341563, "lon": -83.9627713, "type": "Launch", "hours": "Daily (fee $3)",          "web": "https://lakelanier.com/directory/campgrounds/war-hill/"},
+    {"name": "Wahoo Creek Park Ramp",      "lat": 34.3865982, "lon": -83.8598834, "type": "Launch", "hours": "Daily 7am–10pm",          "web": "https://lakelanier.com/directory/parks/wahoo-creek-park/"},
+    {"name": "Toto Creek Campground",      "lat": 34.3950219, "lon": -83.9802421, "type": "Launch", "hours": "Feb 28–Oct 31",           "web": "https://www.recreation.gov/camping/toto-creek-campground/r/campgroundDetails.do?contractCode=NRSO&parkId=151041"},
+    # --- Lumpkin County ---
+    {"name": "Shoal Creek Park Ramp",      "lat": 34.1586087, "lon": -84.0078342, "type": "Launch", "hours": "Daily 7am–10pm",          "web": "https://lakelanier.com/directory/parks/shoal-creek-park/"},
+    {"name": "Big Creek Park Ramp",        "lat": 34.1659897, "lon": -83.9950671, "type": "Launch", "hours": "Daily 6am–10pm",          "web": "https://lakelanier.com/directory/parks/big-creek-park/"},
+    # --- State Park ---
+    {"name": "Don Carter State Park",      "lat": 34.3875314, "lon": -83.7479736, "type": "Launch", "hours": "Daily 8am–5pm (fee req)", "web": "https://gastateparks.org/DonCarter"},
 ]
+
 
 
 places_json = json.dumps(places)
