@@ -42,26 +42,8 @@ def fetch_data():
             import time
             time.sleep(1)
 
-    # USGS Water Temperature — parameter 00010 returns Celsius
-    try:
-        temp_res = requests.get(f"{usgs_base}&parameterCd=00010", timeout=5).json()
-        time_series = temp_res['value']['timeSeries']
-        if time_series:
-            raw_temp_c = float(time_series[0]['values'][0]['value'][0]['value'])
-            data["water_temp"] = round(raw_temp_c * 9 / 5 + 32, 1)  # Convert °C → °F
-    except Exception:
-        # Fallback: try Lake Monster scrape
-        try:
-            lm_url = "https://lakemonster.com/lake/GA/Lake-Lanier-234"
-            headers = {'User-Agent': 'Mozilla/5.0'}
-            lm_res = requests.get(lm_url, headers=headers, timeout=5)
-            match = re.search(r'(\d{2,3})(?:\s*°|\s*&deg;|\s*deg)?\s*F', lm_res.text, re.IGNORECASE)
-            if match:
-                scraped_temp = int(match.group(1))
-                if 35 <= scraped_temp <= 95:
-                    data["water_temp"] = scraped_temp
-        except Exception:
-            pass
+    # Water temp is now fetched separately via fetch_water_temps()
+    data["water_temp"] = "N/A"
 
     # Weather Data
     try:
@@ -101,6 +83,110 @@ def fetch_data():
     data["last_updated"] = now_est.strftime("%I:%M %p")
 
     return data
+
+
+@st.cache_data(ttl=300)
+def fetch_water_temps():
+    """
+    Pulls water temperature from multiple independent sources for Lake Lanier.
+    Returns a dict with per-source readings and computed median/high/low.
+    Sources:
+      1. USGS Buford Dam gauge (02334400, param 00010) — most authoritative
+      2. USGS Flowery Branch gauge (02334480, param 00010) — downstream/cove reading
+      3. Open-Meteo Lake Surface Temp (ERA5 reanalysis, lat/lon for Lanier centroid)
+      4. Lake Monster scrape (fallback HTML)
+    """
+    import statistics
+
+    readings = {}   # {"Source Name": float_temp_F}
+
+    # ---- Source 1: USGS Buford Dam ----
+    try:
+        url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334400&parameterCd=00010"
+        res = requests.get(url, timeout=6).json()
+        ts = res['value']['timeSeries']
+        if ts:
+            val_c = float(ts[0]['values'][0]['value'][0]['value'])
+            readings["USGS Buford Dam"] = round(val_c * 9 / 5 + 32, 1)
+    except Exception:
+        pass
+
+    # ---- Source 2: USGS Flowery Branch (02334480) ----
+    try:
+        url = "https://waterservices.usgs.gov/nwis/iv/?format=json&sites=02334480&parameterCd=00010"
+        res = requests.get(url, timeout=6).json()
+        ts = res['value']['timeSeries']
+        if ts:
+            val_c = float(ts[0]['values'][0]['value'][0]['value'])
+            readings["USGS Flowery Branch"] = round(val_c * 9 / 5 + 32, 1)
+    except Exception:
+        pass
+
+    # ---- Source 3: Open-Meteo (ERA5 lake surface temp at Lanier centroid) ----
+    # Parameter: lake_surface_water_temperature returned in °C
+    try:
+        url = (
+            "https://api.open-meteo.com/v1/forecast"
+            "?latitude=34.18&longitude=-83.98"
+            "&hourly=lake_surface_water_temperature"
+            "&temperature_unit=celsius"
+            "&forecast_days=1"
+            "&timezone=America%2FNew_York"
+        )
+        res = requests.get(url, timeout=6).json()
+        hourly = res.get("hourly", {})
+        temps_c = hourly.get("lake_surface_water_temperature", [])
+        # Get the most recent non-null reading
+        valid = [t for t in temps_c if t is not None]
+        if valid:
+            val_c = valid[-1]
+            readings["Open-Meteo (ERA5)"] = round(val_c * 9 / 5 + 32, 1)
+    except Exception:
+        pass
+
+    # ---- Source 4: Lake Monster scrape ----
+    try:
+        lm_url = "https://lakemonster.com/lake/GA/Lake-Lanier-234"
+        headers = {'User-Agent': 'Mozilla/5.0 (compatible; LanierNav/1.0)'}
+        lm_res = requests.get(lm_url, headers=headers, timeout=6)
+        match = re.search(r'(\d{2,3})(?:\s*°|\s*&deg;|\s*deg)?\s*F', lm_res.text, re.IGNORECASE)
+        if match:
+            scraped = int(match.group(1))
+            if 35 <= scraped <= 95:
+                readings["Lake Monster"] = float(scraped)
+    except Exception:
+        pass
+
+    # ---- Compute stats ----
+    if not readings:
+        return {
+            "sources": {},
+            "median": "N/A",
+            "high": "N/A",
+            "low": "N/A",
+            "confidence": "No data"
+        }
+
+    vals = list(readings.values())
+    median_val = round(statistics.median(vals), 1)
+    high_val = round(max(vals), 1)
+    low_val = round(min(vals), 1)
+
+    n = len(vals)
+    if n >= 3:
+        confidence = "High"
+    elif n == 2:
+        confidence = "Medium"
+    else:
+        confidence = "Low (1 source)"
+
+    return {
+        "sources": readings,
+        "median": median_val,
+        "high": high_val,
+        "low": low_val,
+        "confidence": confidence
+    }
 
 
 @st.cache_data(ttl=300)
@@ -303,6 +389,12 @@ def get_safety_alert(d, wave):
 
 # --- INITIALIZE DATA ---
 d = fetch_data()
+wt_data = fetch_water_temps()
+
+# Inject median water temp back into d so safety alerts / boating score still work
+if wt_data["median"] != "N/A":
+    d["water_temp"] = wt_data["median"]
+
 trend_24h, chart_points = fetch_level_trend()
 wave_height = round(0.016 * (d["wind_mph"] ** 1.5), 1)
 alerts = get_safety_alert(d, wave_height)
@@ -312,7 +404,9 @@ if st.session_state.is_metric:
     unit_dist, unit_temp, unit_speed, unit_vis, unit_press = "m", "°C", "km/h", "km", "hPa"
     disp_level = round(d['level'] * 0.3048, 2) if d['level'] != "N/A" else "N/A"
     disp_pool_diff = round(abs((d['level'] - FULL_POOL_FT) * 0.3048), 2) if d['level'] != "N/A" else "N/A"
-    disp_water_temp = round((float(d['water_temp']) - 32) * 5 / 9, 1) if d['water_temp'] != "N/A" else "N/A"
+    disp_water_temp = round((float(wt_data['median']) - 32) * 5 / 9, 1) if wt_data['median'] != "N/A" else "N/A"
+    disp_water_high = round((wt_data['high'] - 32) * 5 / 9, 1) if wt_data['high'] != "N/A" else "N/A"
+    disp_water_low  = round((wt_data['low']  - 32) * 5 / 9, 1) if wt_data['low']  != "N/A" else "N/A"
     disp_air_temp = round((d['air_temp'] - 32) * 5 / 9, 1) if d['air_temp'] != "N/A" else "N/A"
     disp_wind = round(d['wind_mph'] * 1.60934, 1)
     disp_gusts = round(d['gusts'] * 1.60934, 1)
@@ -323,7 +417,9 @@ else:
     unit_dist, unit_temp, unit_speed, unit_vis, unit_press = "'", "°F", "mph", "mi", "inHg"
     disp_level = round(d['level'], 2) if d['level'] != "N/A" else "N/A"
     disp_pool_diff = round(abs(d['level'] - FULL_POOL_FT), 2) if d['level'] != "N/A" else "N/A"
-    disp_water_temp = d['water_temp'] if d['water_temp'] != "N/A" else "N/A"
+    disp_water_temp = wt_data['median'] if wt_data['median'] != "N/A" else "N/A"
+    disp_water_high = wt_data['high']   if wt_data['high']   != "N/A" else "N/A"
+    disp_water_low  = wt_data['low']    if wt_data['low']    != "N/A" else "N/A"
     disp_air_temp = round(d['air_temp'], 1) if d['air_temp'] != "N/A" else "N/A"
     disp_wind = round(d['wind_mph'], 1)
     disp_gusts = round(d['gusts'], 1)
@@ -371,7 +467,7 @@ st.markdown(f"""
     .alert-content {{ padding: 0 16px 14px 16px; font-weight: 500; font-size: 0.92rem; line-height: 1.5; }}
 
     /* ---- METRIC CARDS ---- */
-    .metrics-grid {{ display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 12px; }}
+    .metrics-grid {{ display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 12px; }}
     .metric-card {{ background: {theme['card_bg']}; border-radius: 16px; padding: 18px 14px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); text-align: center; border: 1px solid {theme['border']}; display: flex; flex-direction: column; justify-content: center; transition: background 0.5s ease; }}
     .metric-title {{ color: {theme['sub_text']}; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; margin-bottom: 6px; font-family: 'Barlow Condensed', sans-serif; }}
     .metric-value {{ color: {theme['text']}; font-size: 2rem; font-weight: 900; line-height: 1.1; font-family: 'Barlow Condensed', sans-serif; }}
@@ -423,7 +519,6 @@ st.markdown(f"""
     @media (max-width: 640px) {{
         .main-title {{ text-align: center; margin-bottom: 8px; font-size: 1.55rem !important; }}
         .metrics-grid {{ grid-template-columns: 1fr 1fr; gap: 8px; }}
-        .metrics-grid .metric-card:nth-child(3) {{ grid-column: span 2; }}
         .metric-value {{ font-size: 1.55rem !important; }}
         .metric-card {{ padding: 14px 10px !important; border-radius: 12px !important; }}
         .info-pill {{ font-size: 0.75rem; min-width: 100px; min-height: 46px; padding: 5px 8px; }}
@@ -499,17 +594,51 @@ else:
 
 level_val = f"{disp_level}{unit_dist}" if disp_level != "N/A" else "N/A"
 
-# Water temp color
-if disp_water_temp != "N/A":
-    wt_num = float(disp_water_temp) if st.session_state.is_metric else float(disp_water_temp)
-    if st.session_state.is_metric:
-        temp_color = "#3498db" if wt_num < 15 else "#f39c12" if wt_num < 27 else "#e74c3c"
-    else:
-        temp_color = "#3498db" if wt_num < 60 else "#f39c12" if wt_num < 80 else "#e74c3c"
+# Water temp color (always based on °F median for thresholds)
+wt_median_f = wt_data['median']
+if wt_median_f != "N/A":
+    wt_f = float(wt_median_f)
+    temp_color = "#74b9ff" if wt_f < 50 else "#3498db" if wt_f < 60 else "#f39c12" if wt_f < 80 else "#e74c3c"
     water_temp_display = f"{disp_water_temp}{unit_temp}"
 else:
     temp_color = theme['sub_text']
     water_temp_display = "N/A"
+
+# Build per-source rows for the water temp breakdown card
+wt_source_rows = ""
+src_icons = {
+    "USGS Buford Dam":      "🏛️",
+    "USGS Flowery Branch":  "📍",
+    "Open-Meteo (ERA5)":    "🛰️",
+    "Lake Monster":         "🐊",
+}
+for src_name, src_val in wt_data["sources"].items():
+    icon = src_icons.get(src_name, "🌡️")
+    if st.session_state.is_metric:
+        disp_src_val = f"{round((src_val - 32) * 5/9, 1)}{unit_temp}"
+    else:
+        disp_src_val = f"{src_val}{unit_temp}"
+    # Highlight if this source matches the median (within 0.5°)
+    is_median = abs(src_val - float(wt_median_f)) <= 0.5 if wt_median_f != "N/A" else False
+    badge = " ✓" if is_median else ""
+    wt_source_rows += f"""
+        <div style="display:flex; justify-content:space-between; align-items:center;
+                    padding:5px 0; border-bottom:1px solid {theme['border']}; font-size:0.75rem;">
+            <span style="color:{theme['sub_text']}; font-weight:600;">{icon} {src_name}{badge}</span>
+            <span style="color:{theme['text']}; font-weight:800; font-family:'Barlow Condensed',sans-serif; font-size:0.88rem;">{disp_src_val}</span>
+        </div>"""
+
+conf_color = {"High": "#2ecc71", "Medium": "#f1c40f", "Low (1 source)": "#e67e22"}.get(wt_data["confidence"], theme['sub_text'])
+
+# Spread display
+if disp_water_high != "N/A" and disp_water_low != "N/A":
+    spread_html = (
+        f"<span style='color:#74b9ff;'>↓{disp_water_low}{unit_temp}</span>"
+        f"&nbsp;–&nbsp;"
+        f"<span style='color:#e74c3c;'>↑{disp_water_high}{unit_temp}</span>"
+    )
+else:
+    spread_html = "N/A"
 
 air_temp_color = theme['text']
 if d['air_temp'] != "N/A":
@@ -531,18 +660,32 @@ st.markdown(f"""
         </div>
     </div>
     <div class="metric-card">
-        <div class="metric-title">Water Temp</div>
-        <div class="metric-value" style="color:{temp_color};">{water_temp_display}</div>
-        <div class="metric-sub">Surface<br>
-            <span style="font-size:0.62rem; opacity:0.45; display:inline-block; margin-top:4px;">{water_temp_source}</span>
-        </div>
-    </div>
-    <div class="metric-card">
         <div class="metric-title">Air Temp</div>
         <div class="metric-value" style="color:{air_temp_color};">{disp_air_temp}{unit_temp}</div>
         <div class="metric-sub">Flowery Branch<br>
             <span style="font-size:0.62rem; opacity:0.45; display:inline-block; margin-top:4px;">Updated: {d['last_updated']}</span>
         </div>
+    </div>
+</div>
+
+<div class="metric-card" style="margin-bottom:12px; padding:16px 18px; text-align:left;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+        <div>
+            <div class="metric-title" style="text-align:left; margin-bottom:4px;">🌡️ Water Temperature — Multi-Source</div>
+            <div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">
+                <span style="font-size:2.4rem; font-weight:900; color:{temp_color}; font-family:'Barlow Condensed',sans-serif; line-height:1;">{water_temp_display}</span>
+                <span style="font-size:0.8rem; color:{theme['sub_text']};">median</span>
+                <span style="font-size:0.85rem; font-weight:700;">{spread_html}</span>
+            </div>
+        </div>
+        <div style="text-align:right;">
+            <div style="font-size:0.68rem; text-transform:uppercase; letter-spacing:1px; color:{theme['sub_text']}; font-weight:700; margin-bottom:3px;">Confidence</div>
+            <div style="font-size:0.9rem; font-weight:800; color:{conf_color}; font-family:'Barlow Condensed',sans-serif;">● {wt_data['confidence']}</div>
+            <div style="font-size:0.62rem; opacity:0.45; margin-top:2px;">{len(wt_data['sources'])} of 4 sources online</div>
+        </div>
+    </div>
+    <div style="border-top:1px solid {theme['border']}; padding-top:10px;">
+        {wt_source_rows if wt_source_rows else '<div style="font-size:0.8rem;text-align:center;padding:8px;opacity:0.5;">No sources available</div>'}
     </div>
 </div>
 """, unsafe_allow_html=True)
